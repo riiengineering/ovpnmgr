@@ -1,0 +1,317 @@
+#dnl -*- mode: shell-script; indent-tabs-mode: t -*-
+#dnl
+#dnl This module contains functions to manage the PKI
+#dnl
+#ifndef _HAVE_PKI_IN
+#define _HAVE_PKI_IN
+
+# PKI
+
+require_command openssl
+
+pki_ensure_pkidir() {
+	test -d "${PKI_DIR:?}" || mkdir "${PKI_DIR:?}"
+}
+
+pki_ensure_dirs() {
+	pki_ensure_pkidir
+
+	test -d "${PKI_DIR:?}/ca" || mkdir "${PKI_DIR:?}/ca"
+	test -d "${PKI_DIR:?}/certs" || mkdir "${PKI_DIR:?}/certs"
+	test -d "${PKI_DIR:?}/crl" || mkdir "${PKI_DIR:?}/crl"
+	test -d "${PKI_DIR:?}/newcerts" || mkdir "${PKI_DIR:?}/newcerts"
+	test -d "${PKI_DIR:?}/private" || mkdir "${PKI_DIR:?}/private"
+	test -d "${PKI_DIR:?}/reqs" || mkdir "${PKI_DIR:?}/reqs"
+}
+
+pki_ensure_openssl_cnf() {
+	pki_ensure_pkidir
+	test -f "${PKI_DIR:?}/openssl.cnf" || cat >"${PKI_DIR:?}/openssl.cnf" <<'OPENSSL_CNF'
+#include ../openssl.cnf
+
+OPENSSL_CNF
+}
+
+pki_openssl() {
+	pki_ensure_openssl_cnf
+	OPENSSL_CONF="${PKI_DIR:?}/openssl.cnf" openssl "$@"
+}
+
+pki_ca_exists() {
+	test -f "${PKI_DIR:?}/ca/ca.key" -a -f "${PKI_DIR:?}/ca/ca.crt"
+}
+
+pki_assert_ca() {
+	pki_ca_exists || fail "no CA found. Please run '$0 create-ca' first."
+}
+
+pki_gencrl() {
+	# TODO: -passin
+	pki_openssl ca \\
+		-utf8 \\
+		-gencrl \\
+		-out "${PKI_DIR:?}/crl.pem"
+}
+
+pki_genpkey() {
+	# usage: pki_genpkey output-file [openssl-opts..]
+	#
+	# generate a private key
+
+	__pki_genpkey_out=${1:?genpkey: no output file}
+	shift
+
+	# TODO: support non-RSA algorithms
+
+	# TODO: make rsa_keygen_bits configurable
+	pki_openssl genpkey \\
+		-quiet \\
+		-aes256 \\
+		-algorithm RSA \\
+		-pkeyopt rsa_keygen_bits:4096 \\
+		-out "${__pki_genpkey_out:?}" \\
+		-outform PEM \\
+		"$@"
+}
+
+pki_genreq() {
+	# usage: pki_genreq private-key csr-output-file [openssl-opt...]
+	#
+	# generate a CSR (Certificate Signing Request) for a given private key.
+
+	__pki_genreq_keyin=${1:?no private key given}
+	__pki_genreq_csrout=${2:?no CSR output given}
+	shift 2
+
+	pki_openssl req \\
+		-utf8 \\
+		-new \\
+		-key "${__pki_genreq_keyin:?}" \\
+		-out "${__pki_genreq_csrout:?}" \\
+		-outform PEM \\
+		-sha256 \\
+		"$@"
+}
+
+pki_selfsign() {
+	# usage: pki_selfsign key-input crt-output-file
+	#
+	# self-signs a private key (used for creating a CA)
+
+	__pki_selfsign_keyin=${1:?no key input given}
+	__pki_selfsign_crtout=${2:?no certificate output given}
+	shift 2
+
+	pki_openssl req \\
+		-utf8 \\
+		-x509 \\
+		-new \\
+		-key "${__pki_selfsign_keyin:?}" \\
+		-out "${__pki_selfsign_crtout:?}" \\
+		-outform PEM \\
+		-sha256 \\
+		"$@"
+}
+
+pki_signreq() {
+	# usage: pki_signreq csr-input-file crt-output-file [openssl-opt...]
+
+	pki_assert_ca
+
+	__pki_signreq_csrin=${1:?no CSR input given}
+	__pki_signreq_crtout=${2:?no certificat output given}
+	shift 2
+
+	pki_openssl ca \\
+		-utf8 \\
+		-keyfile "${PKI_DIR:?}/ca/ca.key" \\
+		-in "${__pki_signreq_csrin:?}" \\
+		-out "${__pki_signreq_crtout:?}" \\
+		-create_serial \\
+		-updatedb \\
+		"$@"
+}
+
+pki_updatedb() {
+	pki_ca_exists || return 0
+
+	pki_openssl ca -utf8 -updatedb
+}
+
+pki_create_ca() {
+	# usage: pki_create_ca passphrase
+
+	if pki_ca_exists
+	then
+		return 2
+	fi
+
+	pki_ensure_dirs
+
+	pki_genpkey "${PKI_DIR:?}/ca/ca.key.tmp" \
+		-pass fd:3 3<<-EOF
+	${1-}
+	EOF
+
+	# TODO: make -days configurable
+	REQ_DEFAULT_CN="${CONFIG_NAME} CA" \\
+	REQ_DN_MODE=org \\
+	pki_selfsign "${PKI_DIR:?}/ca/ca.key.tmp" "${PKI_DIR:?}/ca/ca.crt.tmp" \\
+		-extensions v3_ca \\
+		-copy_extensions copy \\
+		-days $((10 * 365)) \\
+		-passin fd:3 3<<-EOF
+	${1-}
+	EOF
+
+	# move temporary files to destination
+	rm -f "${PKI_DIR:?}/ca/ca.key"
+	mv "${PKI_DIR:?}/ca/ca.key.tmp" "${PKI_DIR:?}/ca/ca.key"
+	rm -f "${PKI_DIR:?}/ca/ca.crt"
+	mv "${PKI_DIR:?}/ca/ca.crt.tmp" "${PKI_DIR:?}/ca/ca.crt"
+
+	# create auxiliary files
+	: >"${PKI_DIR:?}/index.txt" \
+	|| fail 'failed to create index.txt (file permissions?)'
+#if test -n "${SERIAL_START-}"
+	printf '%s\\n' '%{SERIAL_START}' >"${PKI_DIR:?}/serial" \\
+	|| fail 'failed to create serial file (file permissions?)'
+#endif
+}
+
+pki_create_user_keypair() {
+	_username=${1:?}
+	_email=${2:?}
+	_pass=${3:?}
+
+	pki_assert_ca
+
+#ifbool REQUIRE_KEY_PASSPHRASE
+	case ${_pass-}
+	in
+		('')
+			fail 'key passphrase is empty.'
+			;;
+	esac
+
+#endif
+
+	if test -e "${PKI_DIR:?}/private/${_username:?}.key" \\
+		|| test -e "${PKI_DIR:?}/certs/${_username:?}.crt"
+	then
+		fail 'key pair already exists for given username'
+	fi
+
+	pki_genpkey "${PKI_DIR:?}/private/${_username:?}.key.tmp" \
+		${_pass:+ -pass fd:3} 3<<-EOF || fail 'private key generation failed'
+	${_pass:?}
+	EOF
+
+	REQ_DEFAULT_CN=${_username:?} \\
+	REQ_DEFAULT_EMAIL=${_email:?} \\
+	REQ_DN_MODE=org \\
+	pki_genreq \\
+		"${PKI_DIR:?}/private/${_username:?}.key.tmp" \\
+		"${PKI_DIR:?}/reqs/${_username}.csr.tmp" \\
+		-batch \\
+		-text \\
+		${_pass:+ -passin fd:3} 3<<-EOF || fail 'CSR generation failed'
+	${_pass:?}
+	EOF
+
+	# TODO: consider -text option (prepends text output before certificate file)
+	# TODO: check before use $CERT_LIFETIME
+	pki_signreq "${PKI_DIR:?}/reqs/${_username}.csr.tmp" "${PKI_DIR:?}/certs/${_username}.crt.tmp" \\
+		-days $((CERT_LIFETIME)) \\
+		-extensions usr_cert \\
+	|| fail 'certificate signing failed'
+
+	if test -f "${PKI_DIR:?}/certs/${_username}.crt.tmp"
+	then
+		# ok, install key pair to final location
+
+		mv "${PKI_DIR:?}/private/${_username:?}.key.tmp" "${PKI_DIR:?}/private/${_username:?}.key"
+		mv "${PKI_DIR:?}/reqs/${_username}.csr.tmp" "${PKI_DIR:?}/reqs/${_username}.csr"
+		mv "${PKI_DIR:?}/certs/${_username}.crt.tmp" "${PKI_DIR:?}/certs/${_username}.crt"
+	else
+		echo 'Process aborted.' >&2
+		rm -f \
+			"${PKI_DIR:?}/private/${_username:?}.key.tmp" \
+			"${PKI_DIR:?}/reqs/${_username}.csr.tmp"
+
+		unset -v _username _email _pass
+		return 1
+	fi
+
+	unset -v _username _email _pass
+}
+
+pki_renew() {
+	# usage: pki_renew cn
+
+	_cn=${1:?no CN given}
+	shift
+
+	pki_assert_ca
+
+	_pkey="${PKI_DIR:?}/private/${_cn:?}.key"
+	_csr="${PKI_DIR:?}/reqs/${_cn:?}.csr"
+	_cert="${PKI_DIR:?}/certs/${_cn:?}.crt"
+
+	test -f "${_csr:?}" || {
+		# reconstruct CSR from "old" certificate
+
+		test -f "${_pkey:?}" \
+		|| fail 'reconstruction of CSR failed (private key is missing)'
+		test -f "${_cert:?}" \
+		|| fail 'reconstruction of CSR failed (certificate is missing)'
+
+		pki_openssl x509 \
+			-x509toreq \
+			-in "${_cert:?}" \
+			-signkey "${_pkey:?}" \
+			-out "${_csr:?}.tmp" \
+		|| fail 'reconstruction of CSR failed'
+
+		mv "${_csr:?}.tmp" "${_csr:?}"
+	}
+
+	# TODO: check before use $CERT_LIFETIME
+	# TODO: make -days configurable
+	pki_signreq "${_csr:?}" "${_cert:?}" \\
+		-days $((CERT_LIFETIME)) \\
+		-extensions usr_cert \\
+	|| fail 'renewing certificate failed'
+}
+
+pki_revoke() {
+	# usage: pki_revoke cn reason
+
+	_cn=${1:?no CN given}
+	# setting _crl_reason will make a CRL v2
+	_crl_reason=${2-}
+
+	pki_assert_ca
+
+	_cert="${PKI_DIR:?}/certs/${_cn:?}.crt"
+
+	test -f "${_cert:?}" || fail 'no such user exists'
+
+	printf 'Revoking certificate for %s...\\n' "${_cn-}"
+
+	pki_openssl ca \
+		-utf8 \
+		-revoke "${_cert}" \\
+		${_crl_reason:+ -crl_reason "${_crl_reason}"} \\
+	|| return 1
+
+	unset -v _cn _cert _crl_reason
+
+
+	# Update CRL
+	printf 'Updating certificate revocation list...\\n'
+
+	pki_gencrl
+}
+
+#endif

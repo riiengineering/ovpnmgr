@@ -1,0 +1,70 @@
+#dnl -*- mode: shell-script; indent-tabs-mode: t -*-
+#dnl
+#dnl This module implements the add-user command.
+#dnl
+#include base.in
+#include pki.in
+#include config-package.in
+#ifbool USE_PGP
+#include gpg.in
+#endif
+
+# add-user command
+
+cmd_add_user_usage() {
+	printf 'usage: %s add-user USERNAME USER_EMAIL\\n' "$0"
+}
+
+cmd_add_user() {
+	case $#
+	in
+		(2)
+			username=$1
+			email=$2
+			;;
+		(*)
+			cmd_add_user_usage >&2
+			return 2
+			;;
+	esac
+
+	require_ovpn_conf
+
+	user_package_dir=$(user_package_path "${username:?}")
+
+	if test -d "${user_package_dir:?}"
+	then
+		fail 'user package already exists (did you mean to renew?)'
+	fi
+
+	rm -R -f "${user_package_dir:?}.tmp"
+	mkdir "${user_package_dir:?}.tmp"
+
+	printf '%s\\n' "${email:?}" >>"${user_package_dir:?}.tmp/email"
+
+	# first, get the user's PGP key, because without it we cannot store their credentials.
+	# printf 'Fetching PGP key for %s…\n' "${email}"
+	# gpg_fetch_key "${email}" || exit 1
+
+	pass=$(gen_password) || fail 'password generation failed'
+
+#ifbool USE_PGP
+	# FIXME: need to receive public key first
+	gpg_encrypt "${email}" >"${user_package_dir:?}.tmp/password.txt.gpg" <<-EOF || return 1
+	${pass}
+	EOF
+#else
+	cat >"${user_package_dir:?}.tmp/password.txt" <<-EOF || return 1
+	${pass}
+	EOF
+#endif
+
+	pki_create_user_keypair "${username:?}" "${email:?}" "${pass:?}" || return 1
+
+	mv "${user_package_dir:?}.tmp" "${user_package_dir:?}"
+	create_user_package "${username:?}" "${email:?}" || return 1
+#ifbool USE_MAIL_CONFIG
+
+	mail_user_package "${username:?}" "${email:?}"
+#endif
+}

@@ -1,0 +1,61 @@
+#dnl -*- mode: shell-script; indent-tabs-mode: t -*-
+#dnl
+#dnl This module implements the renew command.
+#dnl
+#include pki.in
+#include config-package.in
+#ifbool USE_MAIL_CONFIG
+#include mail.in
+#endif
+
+# renew command
+
+cmd_renew_usage() {
+	printf 'usage: %s renew USERNAME\\n' "$0"
+}
+
+cmd_renew() {
+	case $#
+	in
+		(1)
+			username=${1:?}
+			;;
+		(*)
+			cmd_renew_usage >&2
+			return 2
+			;;
+	esac
+
+	require_ovpn_conf
+
+	user_package_dir=$(user_package_path "${username:?}")
+
+	test -d "${user_package_dir:?}" || {
+		fail 'no such user exists (did you mean to add-user?)'
+	}
+	test -s "${user_package_dir:?}/email" || {
+		fail 'The e-mail of' "${username:-?}" 'is unknown. Aborting.'
+	}
+
+	cert="${PKI_DIR:?}/certs/${username:?}.crt"
+
+	email=$(cat "${user_package_dir:?}/email")
+
+	max_renew_days=14
+
+	if test -f "${cert}" \
+		&& openssl x509 -checkend $((max_renew_days * 86400)) -in "${cert:?}" >/dev/null
+	then
+		fail 'The certificate for' "${username:?}" 'does not expire in the next' $((max_renew_days)) 'days. Try again later.'
+	fi
+
+	pki_renew "${username:?}" || fail 'renewing certificate failed'
+
+	# update user package
+	create_user_package "${username:?}" "${email:?}" || return 1
+#ifbool USE_MAIL_CONFIG
+
+	# send email
+	mail_user_package "${username:?}" "${email:?}"
+#endif
+}

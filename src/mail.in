@@ -1,0 +1,193 @@
+#dnl -*- mode: shell-script; indent-tabs-mode: t -*-
+#dnl
+#dnl This module contains functions to draft e-mails (primarily MIME).
+#dnl
+#ifndef _HAVE_MAIL_IN
+#define _HAVE_MAIL_IN
+#include base.in
+#include base64.in
+#ifbool USE_PGP_MAIL
+#include gpg.in
+#endif
+
+# MIME mail
+
+boundary_chars='A-Za-z0-9+_.:=?'
+
+mime_boundary() {
+	if test -z "${_MIME_BOUNDARY-}"
+	then
+		# boundary length must be 1-70
+		_MIME_BOUNDARY=$(
+			LC_ALL=C tr -cd "${boundary_chars:?}" </dev/random \\
+			| dd bs=1 count=40 2>/dev/null)
+		export _MIME_BOUNDARY
+	fi
+	printf '%s\\n' "${_MIME_BOUNDARY:?}"
+}
+mime_boundary >/dev/null
+
+mime_start_mail() {
+	# must be executed before headers are finished
+
+	echo "Content-Type: multipart/mixed; boundary=$(mime_boundary)"
+	echo "Content-Transfer-Encoding: 7bit"
+	echo 'MIME-Version: 1.0'
+	echo  # terminate header
+	echo 'This is a MIME message.'
+	echo
+
+	mime_start_text
+}
+
+mime_start_text() {
+	printf '%s\\n' "--$(mime_boundary)"
+	printf '%s: %s\\n' \\
+		'Content-Transfer-Encoding' '7bit' \\
+		'Content-Type' 'text/plain; charset="US-ASCII"' \\
+		'Content-Disposition' 'inline'
+	echo
+}
+
+mime_terminate_mail() {
+	printf '%s\\n' "--$(mime_boundary)--"
+}
+
+mime_attach_file() {
+	# usage: mime_attach_file filename[@filesystem location] [MIME type] [attachment/inline] [description]
+	case ${1:--}
+	in
+		(-)
+			;;
+		(*@*)
+			__attach_filename=${1%%@*}
+			__attach_filename=${__attach_filename##*/}
+			;;
+		(*)
+			__attach_filename=${1##*/}
+			;;
+	esac
+
+	printf '%s\\n' "--$(mime_boundary)"
+	printf '%s: %s\\n' \\
+		'Content-Transfer-Encoding' 'base64' \\
+		'Content-Type' "${2:?application/octet-stream}" \\
+		${__attach_filename:+'Content-Disposition' "${3:-attachment}; filename=${__attach_filename}"} \\
+		${4:+'Content-Description' "${4-}"}
+
+	unset -v __attach_filename
+
+	echo
+	base64_enc "${1#*@}"
+	echo
+}
+
+# sending e-mail
+
+draft_mail() {
+	: "${EMAIL:?}"
+
+	awk -v mail_date="$(date '+%a, %d %h %Y %H:%M:%S %z')" '
+	BEGIN {
+		RS = "\\r?\\n"
+		ORS = "\\n"
+		FS = "\\n"
+
+		headers["Date"] = mail_date
+
+		in_header = 1
+	}
+	in_header && $0 {
+		headers[substr($0, 1, index($0, ": ") - 1)] = substr($0, index($0, ": ") + 2)
+	}
+	in_header && !$0 {
+		in_header = 0
+
+		if (!headers["Content-Type"])
+			headers["Content-Type"] = "text/plain; charset=\\"US-ASCII\\""
+
+		for (k in headers)
+			printf "%s: %s\\n", k, headers[k]
+		print ""
+
+		next
+	}
+	!in_header
+	'
+}
+#ifbool USE_PGP_MAIL
+
+draft_pgp_mail() {
+	: "${EMAIL:?}"
+
+	{
+		printf 'Content-Type: multipart/encrypted; boundary="%s"; protocol="application/pgp-encrypted"\\n' "$(mime_boundary)"
+		echo "Content-Transfer-Encoding: 7bit"
+		echo 'MIME-Version: 1.0'
+
+		while read -r __hdr
+		do
+			case ${__hdr}
+			in
+				('Content-Type:'*)
+					__real_content_type=${__hdr#Content-Type:}
+					__real_content_type=${__real_content_type## }
+					;;
+				('Content-Transfer-Encoding:'*|'MIME-Version:'*)
+					;;
+				('')
+					printf '\\n'
+					break
+					;;
+				(*)
+					printf '%s\\n' "${__hdr}"
+					;;
+			esac
+		done
+
+		# terminate header
+		printf '\\n'
+
+		printf 'This is an OpenPGP/MIME encrypted message (RFC 2440 and 3156)\\n\\n'
+
+		# manual
+		# printf '%s\\n' "--$(mime_boundary)"
+		# printf 'Content-Transfer-Encoding: 7bit\\n'
+		# printf 'Content-Type: application/pgp-encrypted\\n'
+		# printf 'Content-Description: PGP/MIME Versions Information\\n'
+		# printf '\\n'
+		# printf 'Version: 1\\n'
+		# printf '\\n'
+
+		# printf '%s\\n' "--$(mime_boundary)"
+		# printf 'Content-Transfer-Encoding: 7bit\\n'
+		# printf 'Content-Disposition: inline; filename=encrypted.asc\\n'
+		# printf 'Content-Type: application/octet-stream; name=encrypted.asc\\n'
+		# printf 'Content-Description: OpenPGP encrypted message\\n'
+		# printf '\\n'
+
+		# using the attachment feature
+		mime_attach_file - \
+			application/pgp-encrypted inline 'PGP/MIME Versions Information' <<-'EOF'
+		Version: 1
+		EOF
+
+		{
+			printf 'Content-Type: %s\\n' "${__real_content_type:-text/plain; charset="US-ASCII"}"
+			printf '\\n'
+
+			cat
+		} \
+		| gpg_encrypt "${_email}" \\
+		| mime_attach_file encrypted.asc@- \\
+			application/octet-stream inline 'OpenPGP encrypted message'
+
+		mime_terminate_mail
+
+		unset -v __real_content_type
+	} \\
+	| draft_mail
+}
+#endif
+
+#endif

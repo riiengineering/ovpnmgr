@@ -1,0 +1,154 @@
+#dnl -*- mode: shell-script; indent-tabs-mode: t -*-
+#!/bin/sh
+#
+# ovpnmgr: a shell-based tool to manage OpenVPN user credentials
+#          (using an OpenSSL-managed PKI)
+#
+# Copyright 2023 Dennis Camera (dennis.camera at riiengineering.ch)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+set -e -u
+#dnl
+#dnl Path variables
+#dnl
+#ifndef CONFDIR
+#define CONFDIR /etc/ovpnmgr
+#endif
+#ifndef USER_PACKAGE_DIR
+#define USER_PACKAGE_DIR %{CONFDIR}/users
+#endif
+#dnl
+#dnl set default USE variables
+#dnl
+#ifndef USE_MAIL_CONFIG
+#define USE_MAIL_CONFIG true
+#endif
+#dnl
+#dnl PGP
+#dnl
+#ifndef USE_PGP
+#define USE_PGP false
+#endif
+#ifbool USE_PGP
+#dnl PGP is generally enabled
+#ifndef USE_PGP_MAIL
+#define USE_PGP_MAIL false
+#endif
+#ifndef USE_PGP_CONFIG
+#define USE_PGP_CONFIG false
+#endif
+#ifndef GNUPGHOME
+#define GNUPGHOME %{CONFDIR}/.gnupg
+#endif
+#else
+#dnl disable all PGP configuration options
+#define USE_PGP_MAIL false
+#define USE_PGP_CONFIG false
+#endif
+#dnl
+#dnl Key pair options
+#dnl
+#ifndef REQUIRE_KEY_PASSPHRASE
+#define REQUIRE_KEY_PASSPHRASE true
+#endif
+#ifndef DEFAULT_CERT_LIFETIME
+#define DEFAULT_CERT_LIFETIME 365
+#endif
+#dnl
+#dnl Config package options
+#dnl
+#ifndef USE_CONFIG_TBLK
+#define USE_CONFIG_TBLK true
+#endif
+#ifndef USE_CONFIG_OVPN
+#define USE_CONFIG_OVPN flat
+#endif
+
+CONFDIR='%{CONFDIR}'
+package_dir='%{USER_PACKAGE_DIR}'
+
+# configuration
+set -a
+CONFIG_NAME='OpenVPN'
+EMAIL=${LOGNAME:-$(whoami)}
+PKI_DIR="${CONFDIR:?}/pki"
+CERT_LIFETIME=%{DEFAULT_CERT_LIFETIME}
+
+
+if test -f "${CONFDIR:?}/config"
+then
+	#shellcheck source=/dev/null
+	. "${CONFDIR:?}/config"
+fi
+set +a
+
+require_command date
+
+#include cmd-add-user.in
+#include cmd-create-ca.in
+#include cmd-list-users.in
+#include cmd-renew.in
+#include cmd-revoke.in
+#include cmd-updatedb.in
+
+# usage & help
+
+usage() {
+	printf '%s [command]\\n' "$0"
+}
+
+help() {
+	usage
+	cat <<-'EOF'
+
+	TODO
+	EOF
+}
+
+
+# main
+
+case $#
+in
+	(0)
+		cmd=help ;;
+	(*)
+		cmd=$1
+		shift
+		;;
+esac
+
+case ${cmd}
+in
+	(add-user)
+		cmd_add_user "$@" ;;
+	(create-ca)
+		cmd_create_ca "$@" ;;
+	(list-users)
+		cmd_list_users "$@" ;;
+	(renew)
+		cmd_renew "$@" ;;
+	(revoke)
+		cmd_revoke "$@" ;;
+	(updatedb)
+		cmd_updatedb "$@" ;;
+	(help)
+		help ;;
+	(*)
+		printf 'invalid command: %s\\n' "${cmd:-?}" >&2
+		help >&2
+		exit 2
+		;;
+esac

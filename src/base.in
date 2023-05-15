@@ -1,0 +1,120 @@
+#dnl -*- mode: shell-script; indent-tabs-mode: t -*-
+#dnl
+#dnl This module contains functions which are too small for a separate module
+#dnl
+#ifndef _HAVE_BASE_IN
+#define _HAVE_BASE_IN
+#include term.in
+
+read_secure() {
+	# usage: read_secure dest_var
+
+	unset -v __read_err
+
+	# disable echo if stdin is a TTY
+	if test -t 0
+	then
+		term_noecho \
+		|| echo 'could not hide keyboard input. Password will be visible!'
+	fi
+
+	read -r "${1:?no destination variable given}" || __read_err=$?
+
+	if test -t 0
+	then
+		echo
+		term_echo || :
+	fi
+
+	return $((__read_err))
+}
+
+read_passphrase_confirm() {
+	# usage: read_passphrase_confirm dest_var prompt
+
+	__read_passphase_rc=1
+
+	# check parameters first
+	: "${1:?no destination variable given}"
+
+	# clear destination variable first, remove leftovers
+	unset -v "${1:?}"
+
+	while :
+	do
+		unset -v __read_password_x __read_password_y
+
+		printf '%s' "${2:-Enter pass phrase: }"
+		read_secure __read_passphrase_x
+		printf '%s' 'Confirm: '
+		read_secure __read_passphrase_y
+
+		# Using case instead of test here because case is guaranteed to be a
+		# built-in while test could be an executable leaking read passwords to
+		# ps(1)
+
+		# 1st step, check if password length is okay
+		case ${__read_passphrase_x-}
+		in
+			('')
+				printf 'No passphrase entered. Try again.\\n' >&2
+				continue
+				;;
+			(????????*)
+				# at least 8 characters were entered, ok.
+				;;
+			(*)
+				# require at least 8 characters
+				printf 'Passphrase is too short. Try again.\\n' >&2
+				continue
+				;;
+		esac
+		# then check if confirmation matches
+		case ${__read_passphrase_x-}
+		in
+			("${__read_passphrase_y-}")
+				# ok
+				__read_passphase_rc=0
+				read -r "${1:?}" <<-EOF || { __read_passphase_rc=$?; unset -v "$1"; }
+				${__read_passphrase_x}
+				EOF
+
+				unset -v __read_passphrase_x __read_passphrase_y
+				break 2
+				;;
+			(*)
+				printf 'Passphrases do not match. Try again.\\n' >&2
+				continue
+				;;
+		esac
+	done
+
+	return $((__read_passphase_rc))
+}
+
+fail() {
+	# usage: fail msg
+
+	printf '%s\\n' "$*" >&2
+	exit 1
+}
+
+PWD_CHARACTER_SET='[:alnum:].,/?!$%^&*()=+_-'
+
+# shellcheck disable=SC2120
+gen_password() {
+	LC_ALL=C tr -d -c "${PWD_CHARACTER_SET}" </dev/random \
+	| dd bs=1 count="${1:-32}" 2>/dev/null
+}
+
+require_command() {
+	command -v "${1:?}" >/dev/null 2>&1 || fail "$1: command not found"
+}
+
+require_ovpn_conf() {
+	test -f "${CONFDIR:?}/config.ovpn" || {
+		fail 'OpenVPN client configuration template is missing. Aborting.'
+	}
+}
+
+#endif

@@ -1,0 +1,29 @@
+#dnl -*- mode: shell-script; indent-tabs-mode: t -*-
+#dnl
+#dnl This module contains functions to manipulate TTYs
+#dnl
+#ifndef _HAVE_TERM_IN
+#define _HAVE_TERM_IN
+
+term_noecho() {
+	if command -v stty >/dev/null
+	then
+		# POSIX ssty
+		stty -echo 2>/dev/null
+	else
+		return 2
+	fi
+}
+
+term_echo() {
+	if command -v stty >/dev/null
+	then
+		# POSIX stty
+		stty echo 2>/dev/null
+	else
+		return 2
+	fi
+
+}
+
+#endif

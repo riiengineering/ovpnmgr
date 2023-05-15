@@ -1,0 +1,26 @@
+#dnl -*- mode: shell-script; indent-tabs-mode: t -*-
+#dnl
+#dnl This module implements the revoke command.
+#dnl
+#include pki.in
+
+# revoke command
+
+cmd_revoke_usage() {
+	printf 'usage: %s revoke USERNAME\\n' "$0"
+}
+
+cmd_revoke() {
+	case $#
+	in
+		(1)
+			username=${1:?}
+			;;
+		(*)
+			cmd_revoke_usage >&2
+			return 2
+			;;
+	esac
+
+	pki_revoke "${username:?}"
+}

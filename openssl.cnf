@@ -1,0 +1,203 @@
+# -*- mode: ini -*-
+#
+# ovpnmgr openssl.cnf
+#
+# copy of https://github.com/openssl/openssl/blob/master/apps/openssl.cnf
+# reformatted for easier manipulation using scripts
+# adjusted for the needs of ovpnmgr
+
+REQ_DN_MODE = org
+
+REQ_DEFAULT_COUNTRY = CH
+REQ_DEFAULT_STATE = SG
+REQ_DEFAULT_CITY =
+REQ_DEFAULT_ORG = riiengineering
+REQ_DEFAULT_OU =
+REQ_DEFAULT_CN =
+REQ_DEFAULT_EMAIL =
+
+# environment defaults
+HOME = ${ENV::PKI_DIR}
+REQ_DN_MODE = org
+
+config_diagnostics = 1
+
+####################################################################
+[ ca ]
+# The default ca section
+default_ca = CA_default
+
+####################################################################
+[ CA_default ]
+
+# Where everything is kept
+dir = ${ENV::PKI_DIR}
+# Where the issued certs are kept
+certs = ${dir}/certs
+# Where the issued crl are kept
+# XXX: needed?
+crl_dir = ${dir}/crl
+# database index file.
+database = ${dir}/index.txt
+# default place for new certs (by serial).
+new_certs_dir = ${dir}/certs
+
+# unique_subject = no allows to renew certificates which have not been revoked
+unique_subject = no
+
+# The CA certificate
+certificate = ${dir}/ca/ca.crt
+# The current serial number
+serial = ${dir}/serial
+# for random serial#s
+rand_serial = yes
+# The current CRL
+# XXX: needed?
+crl = ${dir}/crl.pem
+# The private key
+private_key = ${dir}/ca/ca.key
+
+# The extensions to add to the cert
+x509_extensions = basic_exts
+
+# Subject Name options
+name_opt = ca_default
+# Certificate field options
+cert_opt = ca_default
+
+# how long to certify for
+default_days = 365
+# how long before next CRL
+default_crl_days = 30
+# use public key default MD
+default_md = sha256
+# keep passed DN ordering
+preserve = no
+
+# A few difference way of specifying how similar the request should look
+# For type CA, the listed attributes must be the same, and the optional
+# and supplied fields are just that :-)
+policy = policy_match
+# Don't add the email into cert DN
+email_in_dn = no
+
+# For the CA policy
+[ policy_match ]
+countryName = match
+stateOrProvinceName = match
+organizationName = match
+organizationalUnitName = optional
+commonName = supplied
+emailAddress = optional
+
+# For the 'anything' policy
+# At this point in time, you must list all acceptable 'object'
+# types.
+
+[ policy_anything ]
+countryName = optional
+stateOrProvinceName = optional
+localityName = optional
+organizationName = optional
+organizationalUnitName = optional
+commonName = supplied
+emailAddress = optional
+serialNumber = optional
+
+
+####################################################################
+[ req ]
+default_bits = 4096
+default_md = sha256
+distinguished_name = req_dn_${ENV::REQ_DN_MODE}
+attributes = req_attributes
+# The extensions to add to the self signed cert
+x509_extensions = v3_ca
+
+string_mask = utf8only
+
+[ req_attributes ]
+
+####################################################################
+# DN (Subject)
+
+# subject is only commonName
+[ req_dn_cn_only ]
+commonName = Your User Name
+commonName_max = 64
+commonName_default = ${ENV::REQ_DEFAULT_CN}
+
+# subject is full org structure
+[ req_dn_org ]
+countryName = Country Name (2 letter code)
+countryName_default = ${ENV::REQ_DEFAULT_COUNTRY}
+countryName_min = 2
+countryName_max = 2
+
+stateOrProvinceName = State or Province Name (full name)
+stateOrProvinceName_default = ${ENV::REQ_DEFAULT_STATE}
+
+localityName = Locality Name (eg, city)
+localityName_default = ${ENV::REQ_DEFAULT_CITY}
+
+0.organizationName = Organization Name (eg, company)
+0.organizationName_default = ${ENV::REQ_DEFAULT_ORG}
+
+organizationalUnitName = Organizational Unit Name (eg, section)
+organizationalUnitName_default = ${ENV::REQ_DEFAULT_OU}
+
+commonName = Your User Name
+commonName_max = 64
+commonName_default = ${ENV::REQ_DEFAULT_CN}
+
+emailAddress = Email Address
+emailAddress_max = 64
+emailAddress_default = ${ENV::REQ_DEFAULT_EMAIL}
+
+
+####################################################################
+
+[ usr_cert ]
+
+# These extensions are added when 'ca' signs a request.
+
+# This goes against PKIX guidelines but some CAs do it and some software
+# requires this to avoid interpreting an end user certificate as a CA.
+
+basicConstraints = CA:FALSE
+
+# This is typical in keyUsage for a client certificate.
+# keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+keyUsage = digitalSignature
+
+# PKIX recommendations harmless if included in all certificates.
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer:always
+
+extendedKeyUsage = critical,clientAuth
+
+
+[ v3_ca ]
+
+# Extensions for a typical CA
+
+basicConstraints = CA:TRUE
+
+# PKIX recommendation.
+
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer:always
+
+basicConstraints = critical,CA:true
+
+# Limit key usage to CA tasks.
+keyUsage = cRLSign, keyCertSign
+
+
+[ crl_ext ]
+
+# CRL extensions.
+# Only issuerAltName and authorityKeyIdentifier make any sense in a CRL.
+
+# issuerAltName = issuer:copy
+authorityKeyIdentifier = keyid:always,issuer:always

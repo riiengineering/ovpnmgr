@@ -1,0 +1,227 @@
+#dnl -*- mode: shell-script; indent-tabs-mode: t -*-
+#dnl
+#dnl This module contains functions to generate config tar balls.
+#dnl
+#include base.in
+#ifbool USE_MAIL_CONFIG
+#include mail.in
+#endif
+#ifbool !USE_CONFIG_TBLK
+#if test "${USE_CONFIG_OVPN}" != flat && test "${USE_CONFIG_OVPN}" != dir
+#warning no config file formats are enabled. This doesn’t make any sense!
+#endif
+#endif
+
+ensure_package_dir() {
+	test -d "${package_dir}" || mkdir -p "${package_dir}"
+}
+
+user_package_path() {
+	echo "${package_dir:?}/${1:?no username given}"
+	test -d "${package_dir:?}/${1:?}"  # return value
+}
+
+create_user_package() {
+	__create_user_package_username=${1:?}
+	__create_user_package_email=${2:?}
+
+	require_ovpn_conf
+
+	__create_user_package_userdir=$(user_package_path "${__create_user_package_username:?}") || {
+		ensure_package_dir
+		mkdir "${__create_user_package_userdir:?}"
+	}
+
+	ca_file="${PKI_DIR:?}/ca/ca.crt"
+	cert_file="${PKI_DIR:?}/certs/${__create_user_package_username:?}.crt"
+	key_file="${PKI_DIR:?}/private/${__create_user_package_username:?}.key"
+
+	# FIXME: require mktemp or better workaround
+	if command -v mktemp >/dev/null 2>&1
+	then
+		tmp_pkg=$(mktemp -d "${__create_user_package_userdir:?}/.tmp.XXXXXX")
+	else
+		tmp_pkg=$(mkdir "${__create_user_package_userdir:?}/.tmp")
+	fi \
+	|| fail 'failed to create temp directory. certificate has been signed already'
+
+#ifbool USE_CONFIG_TBLK
+	# create Tunnelblick OpenVPN configuration (for Mac OS X)
+	# https://tunnelblick.net
+
+	tblk_resources="${tmp_pkg:?}/${CONFIG_NAME:-openvpn}.tblk/Contents/Resources"
+	mkdir -p "${tblk_resources:?}"
+
+	cp "${ca_file:?}" "${tblk_resources:?}/ca.crt"
+	if test -f "${ta_key-}"
+	then
+		cp "${ta_key:?}" "${tblk_resources:?}/ta.key"
+	fi
+
+	cp "${cert_file:?}" "${tblk_resources:?}/${__create_user_package_username:?}.crt"
+	cp "${key_file:?}" "${tblk_resources:?}/${__create_user_package_username:?}.key"
+
+	awk \
+		-v username="${__create_user_package_username}" \
+	'# replace @@username@@ with given username
+	{
+		sub(/@@username@@/, username, $0)
+		print
+	}
+	' <"${CONFDIR:?}/config.ovpn" >"${tblk_resources:?}/config.ovpn"
+
+	unset -v tblk_resources
+
+#endif
+#if test "${USE_CONFIG_OVPN}" = flat
+	# create plain OpenVPN configuration (flat file including key, certificates)
+
+	awk \
+		-v ca_file="${ca_file}" \
+		-v cert_file="${cert_file}" \
+		-v key_file="${key_file}" \
+		-v ta_file="${ta_key-}" \
+	'# inline files, available for the following openvpn options:
+	# -ca, --cert, --dh, --extra-certs, --key, --pkcs12, --secret, --crl-verify,
+	# --http-proxy-user-pass, --tls-auth and --tls-crypt
+
+	function inline_file(option, file,    _l) {
+		printf "<%s>" ORS, option
+		while (0 < (getline _l < file)) {
+			print _l
+		}
+		close(file)
+		printf "</%s>" ORS, option
+
+	}
+
+	$1 == "ca" {
+		inline_file($1, ca_file)
+		next
+	}
+	$1 == "cert" {
+		inline_file($1, cert_file)
+		next
+	}
+	$1 == "key" {
+		inline_file($1, key_file)
+		next
+	}
+	$1 == "tls-crypt" || $1 == "tls-auth" {
+		if (ta_file) {
+			inline_file($1, ta_file)
+
+			if ($1 == "tls-auth" && /[ \t)[0-9]$/) {
+				printf "key-direction %u" ORS, substr($0, length, 1)
+			}
+		}
+		next
+	}
+
+	{ print }
+	' <"${CONFDIR:?}/config.ovpn" >"${tmp_pkg:?}/${CONFIG_NAME:-openvpn}.ovpn"
+
+#endif
+#if test "${USE_CONFIG_OVPN}" = dir
+	# create plain OpenVPN configuration (directory format)
+
+	ovpn_confdir="${tmp_pkg:?}/${CONFIG_NAME:-openvpn}"
+	mkdir -p "${ovpn_confdir:?}"
+
+	# FIXME: no code duplication with tblk resources
+	cp "${ca_file:?}" "${ovpn_confdir:?}/ca.crt"
+	if test -f "${ta_key-}"
+	then
+		cp "${ta_key:?}" "${ovpn_confdir:?}/ta.key"
+	fi
+
+	cp "${cert_file:?}" "${ovpn_confdir:?}/${__create_user_package_username:?}.crt"
+	cp "${key_file:?}" "${ovpn_confdir:?}/${__create_user_package_username:?}.key"
+
+	awk -v username="${__create_user_package_username}" '
+	{ sub(/@@username@@/, username, $0); print }
+	' <"${CONFDIR:?}/config.ovpn" >"${tmp_pkg:?}/${CONFIG_NAME:-openvpn}/config.ovpn"
+
+	unset -v ovpn_confdir
+
+#endif
+	#shellcheck disable=SC2035
+	(cd "${tmp_pkg:?}" && tar -c *) \\
+#ifbool USE_PGP_CONFIG
+	| gpg_encrypt "${__create_user_package_email:?}" \\
+	>"${__create_user_package_userdir:?}/config.tar.gpg"
+#else
+	>"${__create_user_package_userdir:?}/config.tar"
+#endif
+
+	rm -R -f "${tmp_pkg:?}"
+
+	unset -v tmp_pkg __create_user_package_username __create_user_package_email
+}
+
+#ifbool USE_MAIL_CONFIG
+require_command sendmail
+
+mail_user_package() {
+	__mail_user_package_username=${1:?}
+	__mail_user_package_email=${2:?}
+
+	__mail_user_package_userdir=$(user_package_path "${__mail_user_package_username:?}")
+
+	test -d "${__mail_user_package_userdir:?}/maillog" \
+	|| mkdir "${__mail_user_package_userdir:?}/maillog"
+
+	{
+		# header
+		printf '%s: %s\n' \
+			From "${EMAIL:?}" \
+			To "${__mail_user_package_email}" \
+			Subject 'VPN Configuration'
+
+		# body
+		mime_start_mail
+
+		if test -e "${CONFDIR:?}/new-user-mail"
+		then
+			cat "${CONFDIR:?}/new-user-mail"
+		else
+			# default message
+			cat <<-'EOF'
+			Hello,
+
+			please find attached the configuration files for your new personalised
+			OpenVPN connection.
+
+			Kind regards,
+
+			the VPN administator.
+
+
+			EOF
+		fi
+
+#ifbool USE_PGP_MAIL
+		mime_attach_file \
+			"${__mail_user_package_package:?}/password.txt.gpg" \
+			text/plain attachment 'OpenVPN password file'
+#endif
+
+		mime_attach_file \
+#ifbool USE_PGP_CONFIG
+			"${__mail_user_package_userdir:?}/config.tar.gpg" \\
+#else
+			"${__mail_user_package_userdir:?}/config.tar" \\
+#endif
+			application/tar attachment 'OpenVPN configuration files'
+
+		mime_terminate_mail
+	} \
+#ifbool USE_PGP_MAIL
+	| draft_pgp_mail \
+#else
+	| draft_mail \
+#endif
+	| tee "${__mail_user_package_userdir:?}/maillog/$(date).eml" \\
+	| sendmail -t
+}
+#endif

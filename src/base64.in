@@ -1,0 +1,17 @@
+#dnl -*- mode: shell-script; indent-tabs-mode: t -*-
+#dnl
+#dnl This module functions to encode text in base64
+#dnl
+#ifndef _HAVE_BASE64_IN
+#define _HAVE_BASE64_IN
+#include base.in
+
+# base64
+
+require_command openssl
+
+base64_enc() {
+	openssl enc -e -base64 ${1+ -in "$1"}
+}
+
+#endif

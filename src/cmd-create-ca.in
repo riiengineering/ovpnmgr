@@ -1,0 +1,43 @@
+#dnl -*- mode: shell-script; indent-tabs-mode: t -*-
+#dnl
+#dnl This module implements the create-ca command.
+#dnl
+#include base.in
+#include pki.in
+
+# create-ca command
+
+cmd_create_ca_usage() {
+	printf 'usage: %s create-ca\\n' "$0"
+}
+
+cmd_create_ca() {
+	cmd_rc=0
+
+	case $#
+	in
+		(0)
+			;;
+		(*)
+			cmd_create_ca_usage >&2
+			return 2
+			;;
+	esac
+
+	if pki_ca_exists
+	then
+		printf 'A CA already exists.\\n' >&2
+		printf 'Re-creating a CA invalidates all certificates. Delete the %s directory to restart from scratch.\\n' "${PKI_DIR:?}" >&2
+		fail 'aborted.'
+	fi
+
+	echo 'Creating a new CA...'
+
+	read_passphrase_confirm ca_pass 'Enter CA private key pass phrase: ' || return
+
+	pki_create_ca "${ca_pass:?}" || cmd_rc=$?
+
+	unset -v ca_pass
+
+	return $((cmd_rc))
+}

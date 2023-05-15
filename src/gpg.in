@@ -1,0 +1,50 @@
+#dnl -*- mode: shell-script; indent-tabs-mode: t -*-
+#dnl
+#dnl This module contains functions for PGP encryption.
+#dnl
+#ifndef _HAVE_GPG_IN
+#define _HAVE_GPG_IN
+#include base.in
+
+# PGP encryption (using GnuPG)
+
+require_command gpg
+
+#if test -n "${GNUPGHOME-}"
+GNUPGHOME='%{GNUPGHOME}'
+export GNUPGHOME
+#else
+unset GNUPGHOME
+#endif
+
+gpg_assert_homedir() {
+	test -n "${GNUPGHOME:?}" || {
+		fail 'GNUPGHOME is not set. PGP cannot be used!'
+	}
+	test -d "${GNUPGHOME:?}" || {
+		mkdir "${GNUPGHOME:?}"
+		chmod 0700 "${GNUPGHOME:?}"
+	}
+}
+
+gpg_encrypt() {
+	gpg_assert_homedir
+
+	for __gpg_encrypt_a
+	do
+		set -- "$@" --recipient "${__gpg_encrypt_a}"
+		shift
+	done
+	unset -v __gpg_encrypt_a
+
+	if test -n "${pgp_additional_recipient-}"
+	then
+		set -- "$@" --recipient "${pgp_additional_recipient:?}"
+	fi
+
+	: "${1:?no recipients}"
+
+	gpg --batch --quiet --encrypt --armor "$@"
+}
+
+#endif

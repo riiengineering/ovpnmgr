@@ -1,0 +1,25 @@
+#dnl -*- mode: shell-script; indent-tabs-mode: t -*-
+#dnl
+#dnl This module implements the updatedb command.
+#dnl
+#include pki.in
+
+# updatedb command
+
+cmd_updatedb_usage() {
+	printf 'usage: %s updatedb\\n' "$0"
+}
+
+cmd_updatedb() {
+	case $#
+	in
+		(0)
+			;;
+		(*)
+			cmd_updatedb_usage >&2
+			return 2
+			;;
+	esac
+
+	pki_updatedb
+}
