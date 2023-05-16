@@ -44,7 +44,7 @@ cmd_renew() {
 	max_renew_days=14
 
 	if test -f "${cert}" \
-		&& openssl x509 -checkend $((max_renew_days * 86400)) -in "${cert:?}" >/dev/null
+		&& pki_check_cert_lifetime "${cert:?}" $((max_renew_days))
 	then
 		fail 'The certificate for' "${username:?}" 'does not expire in the next' $((max_renew_days)) 'days. Try again later.'
 	fi

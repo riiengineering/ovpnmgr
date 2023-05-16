@@ -56,6 +56,16 @@ pki_assert_ca() {
 	pki_ca_exists || fail "no CA found. Please run '$0 create-ca' first."
 }
 
+pki_check_cert_lifetime() {
+	# usage: pki_check_cert_lifetime cert-file min-rest-days
+	# reurns 0 if the certificate is still valid at least min-rest-days
+
+	pki_openssl x509 \\
+		-checkend $((${2:?no min rest days given} * 86400)) \\
+		-in "${1:?no certificate given}" \\
+	>/dev/null
+}
+
 pki_gencrl() {
 	pki_ca_exists || return %{PKI_ENOCA}
 
@@ -127,19 +137,31 @@ pki_selfsign() {
 }
 
 pki_signreq() {
-	# usage: pki_signreq csr-input-file crt-output-file [openssl-opt...]
+	# usage: pki_signreq csr-input-file crt-output-file valid-days [openssl-opt...]
 
 	pki_assert_ca
 
 	__pki_signreq_csrin=${1:?no CSR input given}
-	__pki_signreq_crtout=${2:?no certificat output given}
-	shift 2
+	__pki_signreq_crtout=${2:?no certificate output given}
+	__pki_signreq_days=${3:?no certificate validity given}
+	shift 3
 
+	test $((__pki_signreq_days)) -gt 0 || return %{PKI_EINVAL}
+
+	if ! ${pki_signreq_ignore_ca_lifetime:-false}
+	then
+		# check that the CA is valid for at least $CERT_LIFETIME
+		pki_check_cert_lifetime "${PKI_DIR:?}/ca/ca.crt" $((__pki_signreq_days)) \\
+		|| return %{PKI_ECALIFETIME}
+	fi
+
+	# TODO: consider -text option (prepends text output before certificate file)
 	pki_openssl ca \\
 		-utf8 \\
 		-keyfile "${PKI_DIR:?}/ca/ca.key" \\
 		-in "${__pki_signreq_csrin:?}" \\
 		-out "${__pki_signreq_crtout:?}" \\
+		-days $((__pki_signreq_days)) \\
 		-create_serial \\
 		-updatedb \\
 		"$@"
@@ -232,12 +254,42 @@ pki_create_user_keypair() {
 	${_pass:?}
 	EOF
 
-	# TODO: consider -text option (prepends text output before certificate file)
-	# TODO: check before use $CERT_LIFETIME
-	pki_signreq "${PKI_DIR:?}/reqs/${_username}.csr.tmp" "${PKI_DIR:?}/certs/${_username}.crt.tmp" \\
-		-days $((CERT_LIFETIME)) \\
-		-extensions usr_cert \\
-	|| fail 'certificate signing failed'
+	# "loop" to allow error recovery
+	unset -v pki_signreq_ignore_ca_lifetime
+	while :
+	do
+		pki_signreq \\
+			"${PKI_DIR:?}/reqs/${_username}.csr.tmp" \\
+			"${PKI_DIR:?}/certs/${_username}.crt.tmp" \\
+			$((CERT_LIFETIME)) \\
+			-extensions usr_cert \\
+		|| {
+			case $?
+			in
+				(%{PKI_EINVAL})
+					fail 'certificate lifetime is invalid'
+					;;
+				(%{PKI_ECALIFETIME})
+					# cert would be valid for longer than the CA’s rest lifetime
+					if confirm 'The CA expires before the new certificate would. Are you sure you want to continue?' n
+					then
+						# retry
+						pki_signreq_ignore_ca_lifetime=true
+						continue
+					else
+						echo 'Process aborted.' >&2
+						unset -v _username _email _pass
+						return %{PKI_EABORTED}
+					fi
+					;;
+				(*)
+					fail 'certificate signing failed'
+					;;
+			esac
+		}
+		unset -v pki_signreq_ignore_ca_lifetime
+		break
+	done
 
 	if test -f "${PKI_DIR:?}/certs/${_username}.crt.tmp"
 	then
@@ -289,12 +341,39 @@ pki_renew() {
 		mv "${_csr:?}.tmp" "${_csr:?}"
 	}
 
-	# TODO: check before use $CERT_LIFETIME
-	# TODO: make -days configurable
-	pki_signreq "${_csr:?}" "${_cert:?}" \\
-		-days $((CERT_LIFETIME)) \\
-		-extensions usr_cert \\
-	|| fail 'renewing certificate failed'
+	# "loop" to allow error recovery
+	unset -v pki_signreq_ignore_ca_lifetime
+	while :
+	do
+		pki_signreq "${_csr:?}" "${_cert:?}" $((CERT_LIFETIME)) \\
+			-extensions usr_cert \\
+		|| {
+			case $?
+			in
+				(%{PKI_EINVAL})
+					fail 'certificate lifetime is invalid'
+					;;
+				(%{PKI_ECALIFETIME})
+					# cert would be valid for longer than the CA’s rest lifetime
+					if confirm 'The CA expires before the renewed certificate would. Are you sure you want to continue?' n
+					then
+						# retry
+						pki_signreq_ignore_ca_lifetime=true
+						continue
+					else
+						echo 'Process aborted.' >&2
+						unset -v _cn _pkey _csr _cert
+						return %{PKI_EABORTED}
+					fi
+					;;
+				(*)
+					fail 'certificate renewal failed'
+					;;
+			esac
+		}
+		unset -v pki_signreq_ignore_ca_lifetime
+		break
+	done
 }
 
 pki_revoke() {
