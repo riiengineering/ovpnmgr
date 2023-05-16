@@ -46,7 +46,7 @@ read_secure() {
 	# disable echo if stdin is a TTY
 	if test -t 0
 	then
-		term_noecho \
+		term_noecho \\
 		|| echo 'could not hide keyboard input. Password will be visible!'
 	fi
 
@@ -135,7 +135,7 @@ PWD_CHARACTER_SET='[:alnum:].,/?!$%^&*()=+_-'
 
 # shellcheck disable=SC2120
 gen_password() {
-	LC_ALL=C tr -d -c "${PWD_CHARACTER_SET}" </dev/random \
+	LC_ALL=C tr -d -c "${PWD_CHARACTER_SET}" </dev/random \\
 	| dd bs=1 count="${1:-32}" 2>/dev/null
 }
 

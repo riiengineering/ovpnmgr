@@ -43,7 +43,7 @@ cmd_renew() {
 
 	max_renew_days=14
 
-	if test -f "${cert}" \
+	if test -f "${cert}" \\
 		&& pki_check_cert_lifetime "${cert:?}" $((max_renew_days))
 	then
 		fail 'The certificate for' "${username:?}" 'does not expire in the next' $((max_renew_days)) 'days. Try again later.'

@@ -167,7 +167,7 @@ draft_pgp_mail() {
 		# printf '\\n'
 
 		# using the attachment feature
-		mime_attach_file - \
+		mime_attach_file - \\
 			application/pgp-encrypted inline 'PGP/MIME Versions Information' <<-'EOF'
 		Version: 1
 		EOF
@@ -177,7 +177,7 @@ draft_pgp_mail() {
 			printf '\\n'
 
 			cat
-		} \
+		} \\
 		| gpg_encrypt "${_email}" \\
 		| mime_attach_file encrypted.asc@- \\
 			application/octet-stream inline 'OpenPGP encrypted message'

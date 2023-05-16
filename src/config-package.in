@@ -63,8 +63,8 @@ create_user_package() {
 	cp "${cert_file:?}" "${tblk_resources:?}/${__create_user_package_username:?}.crt"
 	cp "${key_file:?}" "${tblk_resources:?}/${__create_user_package_username:?}.key"
 
-	awk \
-		-v username="${__create_user_package_username}" \
+	awk \\
+		-v username="${__create_user_package_username}" \\
 	'# replace @@username@@ with given username
 	{
 		sub(/@@username@@/, username, $0)
@@ -78,11 +78,11 @@ create_user_package() {
 #if test "${USE_CONFIG_OVPN}" = flat
 	# create plain OpenVPN configuration (flat file including key, certificates)
 
-	awk \
-		-v ca_file="${ca_file}" \
-		-v cert_file="${cert_file}" \
-		-v key_file="${key_file}" \
-		-v ta_file="${ta_key-}" \
+	awk \\
+		-v ca_file="${ca_file}" \\
+		-v cert_file="${cert_file}" \\
+		-v key_file="${key_file}" \\
+		-v ta_file="${ta_key-}" \\
 	'# inline files, available for the following openvpn options:
 	# -ca, --cert, --dh, --extra-certs, --key, --pkcs12, --secret, --crl-verify,
 	# --http-proxy-user-pass, --tls-auth and --tls-crypt
@@ -113,7 +113,7 @@ create_user_package() {
 		if (ta_file) {
 			inline_file($1, ta_file)
 
-			if ($1 == "tls-auth" && /[ \t)[0-9]$/) {
+			if ($1 == "tls-auth" && /[ \\t)[0-9]$/) {
 				printf "key-direction %u" ORS, substr($0, length, 1)
 			}
 		}
@@ -170,14 +170,14 @@ mail_user_package() {
 
 	__mail_user_package_userdir=$(user_package_path "${__mail_user_package_username:?}")
 
-	test -d "${__mail_user_package_userdir:?}/maillog" \
+	test -d "${__mail_user_package_userdir:?}/maillog" \\
 	|| mkdir "${__mail_user_package_userdir:?}/maillog"
 
 	{
 		# header
-		printf '%s: %s\n' \
-			From "${EMAIL:?}" \
-			To "${__mail_user_package_email}" \
+		printf '%s: %s\\n' \\
+			From "${EMAIL:?}" \\
+			To "${__mail_user_package_email}" \\
 			Subject 'VPN Configuration'
 
 		# body
@@ -203,12 +203,12 @@ mail_user_package() {
 		fi
 
 #ifbool USE_PGP_MAIL
-		mime_attach_file \
-			"${__mail_user_package_package:?}/password.txt.gpg" \
+		mime_attach_file \\
+			"${__mail_user_package_package:?}/password.txt.gpg" \\
 			text/plain attachment 'OpenVPN password file'
 #endif
 
-		mime_attach_file \
+		mime_attach_file \\
 #ifbool USE_PGP_CONFIG
 			"${__mail_user_package_userdir:?}/config.tar.gpg" \\
 #else
@@ -217,11 +217,11 @@ mail_user_package() {
 			application/tar attachment 'OpenVPN configuration files'
 
 		mime_terminate_mail
-	} \
+	} \\
 #ifbool USE_PGP_MAIL
-	| draft_pgp_mail \
+	| draft_pgp_mail \\
 #else
-	| draft_mail \
+	| draft_mail \\
 #endif
 	| tee "${__mail_user_package_userdir:?}/maillog/$(date).eml" \\
 	| sendmail -t

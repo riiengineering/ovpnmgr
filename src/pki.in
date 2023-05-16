@@ -48,7 +48,7 @@ pki_openssl() {
 }
 
 pki_ca_exists() {
-	test -f "${PKI_DIR:?}/ca/ca.key" -a -f "${PKI_DIR:?}/ca/ca.crt" \
+	test -f "${PKI_DIR:?}/ca/ca.key" -a -f "${PKI_DIR:?}/ca/ca.crt" \\
 	|| return %{PKI_ENOCA}
 }
 
@@ -183,7 +183,7 @@ pki_create_ca() {
 
 	pki_ensure_dirs
 
-	pki_genpkey "${PKI_DIR:?}/ca/ca.key.tmp" \
+	pki_genpkey "${PKI_DIR:?}/ca/ca.key.tmp" \\
 		-pass fd:3 3<<-EOF
 	${1-}
 	EOF
@@ -206,7 +206,7 @@ pki_create_ca() {
 	mv "${PKI_DIR:?}/ca/ca.crt.tmp" "${PKI_DIR:?}/ca/ca.crt"
 
 	# create auxiliary files
-	: >"${PKI_DIR:?}/index.txt" \
+	: >"${PKI_DIR:?}/index.txt" \\
 	|| fail 'failed to create index.txt (file permissions?)'
 #if test -n "${SERIAL_START-}"
 	printf '%s\\n' '%{SERIAL_START}' >"${PKI_DIR:?}/serial" \\
@@ -237,7 +237,7 @@ pki_create_user_keypair() {
 		fail 'key pair already exists for given username'
 	fi
 
-	pki_genpkey "${PKI_DIR:?}/private/${_username:?}.key.tmp" \
+	pki_genpkey "${PKI_DIR:?}/private/${_username:?}.key.tmp" \\
 		${_pass:+ -pass fd:3} 3<<-EOF || fail 'private key generation failed'
 	${_pass:?}
 	EOF
@@ -300,8 +300,8 @@ pki_create_user_keypair() {
 		mv "${PKI_DIR:?}/certs/${_username}.crt.tmp" "${PKI_DIR:?}/certs/${_username}.crt"
 	else
 		echo 'Process aborted.' >&2
-		rm -f \
-			"${PKI_DIR:?}/private/${_username:?}.key.tmp" \
+		rm -f \\
+			"${PKI_DIR:?}/private/${_username:?}.key.tmp" \\
 			"${PKI_DIR:?}/reqs/${_username}.csr.tmp"
 
 		unset -v _username _email _pass
@@ -326,16 +326,16 @@ pki_renew() {
 	test -f "${_csr:?}" || {
 		# reconstruct CSR from "old" certificate
 
-		test -f "${_pkey:?}" \
+		test -f "${_pkey:?}" \\
 		|| fail 'reconstruction of CSR failed (private key is missing)'
-		test -f "${_cert:?}" \
+		test -f "${_cert:?}" \\
 		|| fail 'reconstruction of CSR failed (certificate is missing)'
 
-		pki_openssl x509 \
-			-x509toreq \
-			-in "${_cert:?}" \
-			-signkey "${_pkey:?}" \
-			-out "${_csr:?}.tmp" \
+		pki_openssl x509 \\
+			-x509toreq \\
+			-in "${_cert:?}" \\
+			-signkey "${_pkey:?}" \\
+			-out "${_csr:?}.tmp" \\
 		|| fail 'reconstruction of CSR failed'
 
 		mv "${_csr:?}.tmp" "${_csr:?}"
@@ -391,8 +391,8 @@ pki_revoke() {
 
 	printf 'Revoking certificate for %s...\\n' "${_cn-}"
 
-	pki_openssl ca \
-		-utf8 \
+	pki_openssl ca \\
+		-utf8 \\
 		-revoke "${_cert}" \\
 		${_crl_reason:+ -crl_reason "${_crl_reason}"} \\
 	|| return %{PKI_EFAIL}
