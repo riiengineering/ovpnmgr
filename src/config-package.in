@@ -2,6 +2,8 @@
 #dnl
 #dnl This module contains functions to generate config tar balls.
 #dnl
+#ifndef _HAVE_CONFIG_PACKAGE_IN
+#define _HAVE_CONFIG_PACKAGE_IN
 #include base.in
 #ifbool USE_MAIL_CONFIG
 #include mail.in
@@ -224,4 +226,6 @@ mail_user_package() {
 	| tee "${__mail_user_package_userdir:?}/maillog/$(date).eml" \\
 	| sendmail -t
 }
+#endif
+
 #endif
