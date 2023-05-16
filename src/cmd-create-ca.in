@@ -20,7 +20,7 @@ cmd_create_ca() {
 			;;
 		(*)
 			cmd_create_ca_usage >&2
-			return 2
+			return %{EUSAGE}
 			;;
 	esac
 

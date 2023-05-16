@@ -24,7 +24,7 @@ cmd_add_user() {
 			;;
 		(*)
 			cmd_add_user_usage >&2
-			return 2
+			return %{EUSAGE}
 			;;
 	esac
 
@@ -44,25 +44,25 @@ cmd_add_user() {
 
 	# first, get the user's PGP key, because without it we cannot store their credentials.
 	# printf 'Fetching PGP key for %s…\n' "${email}"
-	# gpg_fetch_key "${email}" || exit 1
+	# gpg_fetch_key "${email}" || return %{EFAIL}
 
 	pass=$(gen_password) || fail 'password generation failed'
 
 #ifbool USE_PGP
 	# FIXME: need to receive public key first
-	gpg_encrypt "${email}" >"${user_package_dir:?}.tmp/password.txt.gpg" <<-EOF || return 1
+	gpg_encrypt "${email}" >"${user_package_dir:?}.tmp/password.txt.gpg" <<-EOF || return %{EFAIL}
 	${pass}
 	EOF
 #else
-	cat >"${user_package_dir:?}.tmp/password.txt" <<-EOF || return 1
+	cat >"${user_package_dir:?}.tmp/password.txt" <<-EOF || return %{EFAIL}
 	${pass}
 	EOF
 #endif
 
-	pki_create_user_keypair "${username:?}" "${email:?}" "${pass:?}" || return 1
+	pki_create_user_keypair "${username:?}" "${email:?}" "${pass:?}" || return %{EFAIL}
 
 	mv "${user_package_dir:?}.tmp" "${user_package_dir:?}"
-	create_user_package "${username:?}" "${email:?}" || return 1
+	create_user_package "${username:?}" "${email:?}" || return %{EFAIL}
 #ifbool USE_MAIL_CONFIG
 
 	mail_user_package "${username:?}" "${email:?}"

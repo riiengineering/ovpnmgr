@@ -75,6 +75,12 @@ set -e -u
 #ifndef USE_CONFIG_OVPN
 #define USE_CONFIG_OVPN flat
 #endif
+#dnl
+#dnl define exit statuses
+#dnl
+#define EOK 0
+#define EFAIL 1
+#define EUSAGE 2
 
 CONFDIR='%{CONFDIR}'
 package_dir='%{USER_PACKAGE_DIR}'
@@ -149,6 +155,6 @@ in
 	(*)
 		printf 'invalid command: %s\\n' "${cmd:-?}" >&2
 		help >&2
-		exit 2
+		exit %{EUSAGE}
 		;;
 esac

@@ -96,7 +96,7 @@ fail() {
 	# usage: fail msg
 
 	printf '%s\\n' "$*" >&2
-	exit 1
+	exit %{EFAIL}
 }
 
 PWD_CHARACTER_SET='[:alnum:].,/?!$%^&*()=+_-'

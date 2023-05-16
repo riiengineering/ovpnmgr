@@ -22,7 +22,7 @@ cmd_renew() {
 			;;
 		(*)
 			cmd_renew_usage >&2
-			return 2
+			return %{EUSAGE}
 			;;
 	esac
 
@@ -52,7 +52,7 @@ cmd_renew() {
 	pki_renew "${username:?}" || fail 'renewing certificate failed'
 
 	# update user package
-	create_user_package "${username:?}" "${email:?}" || return 1
+	create_user_package "${username:?}" "${email:?}" || return %{EFAIL}
 #ifbool USE_MAIL_CONFIG
 
 	# send email

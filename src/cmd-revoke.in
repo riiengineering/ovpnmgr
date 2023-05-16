@@ -18,7 +18,7 @@ cmd_revoke() {
 			;;
 		(*)
 			cmd_revoke_usage >&2
-			return 2
+			return %{EUSAGE}
 			;;
 	esac
 

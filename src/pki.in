@@ -4,6 +4,16 @@
 #dnl
 #ifndef _HAVE_PKI_IN
 #define _HAVE_PKI_IN
+#dnl
+#dnl PKI errno defines (start at 64 to leave the lower exit codes to OpenSSL)
+#dnl
+#define PKI_EOK 0
+#define PKI_EFAIL 1
+#define PKI_EINVAL 22
+#define PKI_ENOCA 64
+#define PKI_ECAEXISTS 65
+#define PKI_EABORTED 66
+#define PKI_ECALIFETIME 67
 
 # PKI
 
@@ -38,7 +48,8 @@ pki_openssl() {
 }
 
 pki_ca_exists() {
-	test -f "${PKI_DIR:?}/ca/ca.key" -a -f "${PKI_DIR:?}/ca/ca.crt"
+	test -f "${PKI_DIR:?}/ca/ca.key" -a -f "${PKI_DIR:?}/ca/ca.crt" \
+	|| return %{PKI_ENOCA}
 }
 
 pki_assert_ca() {
@@ -46,6 +57,8 @@ pki_assert_ca() {
 }
 
 pki_gencrl() {
+	pki_ca_exists || return %{PKI_ENOCA}
+
 	# TODO: -passin
 	pki_openssl ca \\
 		-utf8 \\
@@ -133,7 +146,7 @@ pki_signreq() {
 }
 
 pki_updatedb() {
-	pki_ca_exists || return 0
+	pki_ca_exists || return %{PKI_EOK}
 
 	pki_openssl ca -utf8 -updatedb
 }
@@ -143,7 +156,7 @@ pki_create_ca() {
 
 	if pki_ca_exists
 	then
-		return 2
+		return %{PKI_ECAEXISTS}
 	fi
 
 	pki_ensure_dirs
@@ -240,7 +253,7 @@ pki_create_user_keypair() {
 			"${PKI_DIR:?}/reqs/${_username}.csr.tmp"
 
 		unset -v _username _email _pass
-		return 1
+		return %{PKI_EABORTED}
 	fi
 
 	unset -v _username _email _pass
@@ -303,7 +316,7 @@ pki_revoke() {
 		-utf8 \
 		-revoke "${_cert}" \\
 		${_crl_reason:+ -crl_reason "${_crl_reason}"} \\
-	|| return 1
+	|| return %{PKI_EFAIL}
 
 	unset -v _cn _cert _crl_reason
 

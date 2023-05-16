@@ -17,7 +17,7 @@ cmd_updatedb() {
 			;;
 		(*)
 			cmd_updatedb_usage >&2
-			return 2
+			return %{EUSAGE}
 			;;
 	esac
 

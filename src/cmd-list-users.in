@@ -17,13 +17,13 @@ cmd_list_users() {
 			;;
 		(*)
 			cmd_list_users_usage >&2
-			return 2
+			return %{EUSAGE}
 			;;
 	esac
 
 	test -f "${PKI_DIR:?}/index.txt" || {
 		echo 'index.txt does not exist.' >&2
-		exit 1
+		exit %{EFAIL}
 	}
 	awk -F '\\t' -v now="$(date -u +'%Y-%m-%d %H:%M:%SZ')" '
 	function nice_date(d) {
