@@ -14,6 +14,8 @@
 #endif
 #endif
 
+require_command mktemp
+
 ensure_package_dir() {
 	test -d "${package_dir}" || mkdir -p "${package_dir}"
 }
@@ -38,14 +40,9 @@ create_user_package() {
 	cert_file="${PKI_DIR:?}/certs/${__create_user_package_username:?}.crt"
 	key_file="${PKI_DIR:?}/private/${__create_user_package_username:?}.key"
 
-	# FIXME: require mktemp or better workaround
-	if command -v mktemp >/dev/null 2>&1
-	then
-		tmp_pkg=$(mktemp -d "${__create_user_package_userdir:?}/.tmp.XXXXXX")
-	else
-		tmp_pkg=$(mkdir "${__create_user_package_userdir:?}/.tmp")
-	fi \
-	|| fail 'failed to create temp directory. certificate has been signed already'
+	tmp_pkg=$(mktemp -d "${__create_user_package_userdir:?}/.tmp.XXXXXX") || {
+		fail 'failed to create temp directory. certificate has been signed already'
+	}
 
 #ifbool USE_CONFIG_TBLK
 	# create Tunnelblick OpenVPN configuration (for Mac OS X)
