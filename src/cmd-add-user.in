@@ -30,7 +30,7 @@ cmd_add_user() {
 
 	require_ovpn_conf
 
-	user_package_dir=$(user_package_path "${username:?}")
+	user_package_dir=$(user_package_path "${username:?}") || :
 
 	if test -d "${user_package_dir:?}"
 	then
