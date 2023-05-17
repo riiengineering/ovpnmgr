@@ -46,6 +46,8 @@ cmd_add_user() {
 	# printf 'Fetching PGP key for %s…\n' "${email}"
 	# gpg_fetch_key "${email}" || return %{EFAIL}
 
+	# TODO: merge code with cmd-renew
+
 	pass=$(gen_password) || fail 'password generation failed'
 
 #ifbool USE_PGP

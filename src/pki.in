@@ -56,9 +56,19 @@ pki_assert_ca() {
 	pki_ca_exists || fail "no CA found. Please run '$0 create-ca' first."
 }
 
+pki_cn_is_revoked() {
+	# usage: pki_cn_is_revoked cn
+
+	pki_index_parse \\
+		filter:CN="${1:?no CN given}" \\
+		output:state-only \\
+	| grep -qxF 'R'
+}
+
 pki_check_cert_lifetime() {
 	# usage: pki_check_cert_lifetime cert-file min-rest-days
-	# reurns 0 if the certificate is still valid at least min-rest-days
+	# returns 0 if the certificate is still valid at least min-rest-days
+	# (revocation is ignored and needs to be checked separately)
 
 	pki_openssl x509 \\
 		-checkend $((${2:?no min rest days given} * 86400)) \\
@@ -231,8 +241,11 @@ pki_create_user_keypair() {
 
 #endif
 
-	if test -e "${PKI_DIR:?}/private/${_username:?}.key" \\
-		|| test -e "${PKI_DIR:?}/certs/${_username:?}.crt"
+	if ! ${pki_overwrite_pkey:-false} \\
+		&& {
+			test -e "${PKI_DIR:?}/private/${_username:?}.key" \\
+			|| test -e "${PKI_DIR:?}/certs/${_username:?}.crt"
+		}
 	then
 		fail 'key pair already exists for given username'
 	fi
@@ -311,8 +324,17 @@ pki_create_user_keypair() {
 	unset -v _username _email _pass
 }
 
-pki_renew() {
-	# usage: pki_renew cn
+pki_rebuild() {
+	# usage: pki_rebuild username email pkey-password
+
+	pki_assert_ca
+
+	pki_overwrite_pkey=true \\
+	pki_create_user_keypair "$@"
+}
+
+pki_resign_user_cert() {
+	# usage: pki_resign_user_cert cn
 
 	_cn=${1:?no CN given}
 	shift

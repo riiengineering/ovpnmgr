@@ -10,6 +10,8 @@
 
 # renew command
 
+MAX_RENEW_DAYS=14
+
 cmd_renew_usage() {
 	printf 'usage: %s renew USERNAME\\n' "$0"
 }
@@ -41,21 +43,64 @@ cmd_renew() {
 
 	email=$(cat "${user_package_dir:?}/email")
 
-	max_renew_days=14
+	pki_cn_is_revoked "${username:?}" \\
+	&& cn_revoked=true \\
+	|| cn_revoked=false
 
 	if test -f "${cert}" \\
-		&& pki_check_cert_lifetime "${cert:?}" $((max_renew_days))
+		&& ! ${cn_revoked?} \\
+		&& pki_check_cert_lifetime "${cert:?}" $((MAX_RENEW_DAYS))
 	then
-		fail 'The certificate for' "${username:?}" 'does not expire in the next' $((max_renew_days)) 'days. Try again later.'
+		fail 'The certificate for' "${username:?}" 'does not expire in the next' $((MAX_RENEW_DAYS)) 'days. Try again later.'
 	fi
 
-	pki_renew "${username:?}" || fail 'renewing certificate failed'
+	rebuild_needed=false
+	if ${cn_revoked?} \\
+		&& confirm "The private key for user ${username?} is belongs to a revoked certificate. Should a new private key be generated?" y
+	then
+		rebuild_needed=true
+	fi
+
+	if ${rebuild_needed?}
+	then
+		# generate a new password for the new private key
+		# TODO: merge code with cmd-add-user
+		pass=$(gen_password) || fail 'password generation failed'
+
+#ifbool USE_PGP
+		if test -f "${user_package_dir:?}/password.txt.gpg"
+		then
+			mv "${user_package_dir:?}/password.txt.gpg" "${user_package_dir:?}/password.txt.old.gpg"
+		fi
+
+		# FIXME: need to receive public key first
+		gpg_encrypt "${email}" >"${user_package_dir:?}/password.txt.gpg" <<-EOF || return %{EFAIL}
+		${pass}
+		EOF
+#else
+		if test -f "${user_package_dir:?}/password.txt"
+		then
+			mv "${user_package_dir:?}/password.txt" "${user_package_dir:?}/password.txt.old"
+		fi
+
+		cat >"${user_package_dir:?}/password.txt" <<-EOF || return %{EFAIL}
+		${pass}
+		EOF
+#endif
+
+		pki_rebuild "${username:?}" "${email:?}" "${pass:?}"
+	else
+		printf 'Renewing user certificate for %s...' "${username:?}"
+		pki_resign_user_cert "${username:?}" || fail 're-signing certificate failed'
+	fi
 
 	# update user package
 	create_user_package "${username:?}" "${email:?}" || return %{EFAIL}
 #ifbool USE_MAIL_CONFIG
 
 	# send email
-	mail_user_package "${username:?}" "${email:?}"
+	mail_user_package "${username:?}" "${email:?}" || {
+		printf 'mailing user package failed. Please send the config tar ball to the user manually.' >&2
+	}
 #endif
 }
