@@ -406,4 +406,167 @@ pki_revoke() {
 	pki_gencrl
 }
 
+pki_index_parse() {
+	# usage: pki_index_parse [option...]
+	#
+	# options are:
+	# - filter:subject-field=value
+	# - output:{human|state-only}
+	# - states:{V|R|E}[,...]
+
+	for __pki_index_parse_opt
+	do
+		case ${__pki_index_parse_opt}
+		in
+			(filter:*)
+				set -- "$@" -v filter=${__pki_index_parse_opt#*:}
+				;;
+			(output:*)
+				set -- "$@" -v output=${__pki_index_parse_opt#*:}
+				;;
+			(states:*)
+				set -- "$@" -v filter_states=${__pki_index_parse_opt#*:}
+				;;
+		esac
+		shift
+	done
+	unset -v __pki_index_parse_opt
+
+	test -f "${PKI_DIR:?}/index.txt" || {
+		echo 'index.txt does not exist.' >&2
+		return %{EFAIL}
+	}
+
+	awk -F '\\t' -v now="$(date -u +'%Y-%m-%d %H:%M:%SZ')" "$@" '
+	function nice_date(d) {
+		if (!d) return ""
+
+		if (length(d) == 13) {
+			# convert ASN.1 UTCTime format to ASN.1 GeneralizedTime
+			d = ((substr(d, 1, 2) < 50) ? "20" : "19") d
+		}
+
+		return sprintf("%04u-%02u-%02u %02u:%02u:%02uZ",
+			substr(d, 1, 4), substr(d, 5, 2), substr(d, 7, 2),
+			substr(d, 9, 2), substr(d, 11, 2), substr(d, 13, 2))
+	}
+
+	function cert_state(serial) {
+		if (certs[serial, "rev_date"]) {
+			return "R"
+		} else if (certs[serial, "exp_date"] < now) {
+			return "E"
+		} else {
+			return "V"
+		}
+	}
+
+	function cert_validity(serial) {
+		if (certs[serial, "valid_until"]) {
+			return certs[serial, "valid_until"]
+		} else if (certs[serial, "rev_date"] && certs[serial, "rev_date"] < certs[serial, "exp_date"]) {
+			return certs[serial, "rev_date"]
+		} else {
+			return certs[serial, "exp_date"]
+		}
+	}
+
+	BEGIN {
+		if (filter) {
+			filter_field = substr(filter, 1, index(filter, "=")-1)
+			filter_value = substr(filter, length(filter_field) + 2)
+		}
+
+		if (filter_states) {
+			gsub(/,/, "|", filter_states)
+			filter_states = "^" filter_states "$"
+			print filter_states
+		}
+
+		if (!output) {
+			output = "human"
+		}
+	}
+
+	{
+		serial = $4
+
+		certs[serial, "exp_date"] = nice_date($2)
+		certs[serial, "rev_date"] = nice_date($3)
+		certs[serial, "file"] = $5
+		certs[serial, "subj"] = $6
+
+		certs[serial, "state"] = cert_state(serial)
+		certs[serial, "valid_until"] = cert_validity(serial)
+
+		# XXX: updatedb will only update V to E, not the inverse. Take into account here?
+		if ($1 != certs[serial, "state"]) {
+			db_outdated = 1
+		}
+
+		split($6, subj_parts, "/")
+		for (i = 1; i in subj_parts; i++) {
+			certs[serial, "dn", substr(subj_parts[i], 1, index(subj_parts[i], "=")-1)] = \\
+				substr(subj_parts[i], index(subj_parts[i], "=")+1)
+		}
+
+		cn = certs[serial, "dn", "CN"]
+
+		if (!cn) next  # WTF
+
+		if (filter_field) {
+			if (certs[serial, "dn", filter_field] != filter_value) {
+				# filter out
+				next
+			}
+		}
+
+		if (cn in cns) {
+			# check date, only keep longest valid
+			if ("V" != certs[serial, "state"] && "V" == certs[cns[cn], "state"]) {
+				# we have a valid certificate, but this one is not
+				next
+			}
+
+			if (cert_validity(serial) < cert_validity(cns[cn])) {
+				# we already have a certificate which is valid for longer
+				next
+			}
+		}
+
+		cns[cn] = serial
+	}
+
+	END {
+		for (cn in cns) {
+			serial = cns[cn]
+
+			if (filter_states && certs[serial, "state"] !~ filter_states) {
+				continue
+			}
+
+			cn = certs[serial, "dn", "CN"]
+			email = certs[serial, "dn", "emailAddress"]
+			u = (cn && email ? cn " <" email ">" : cn ? cn : email)
+
+			if ("human" == output) {
+				if ("V" == certs[serial, "state"]) {
+					printf "V %s (expires %s)\\n", u, certs[serial, "exp_date"]
+				} else if ("E" == certs[serial, "state"]) {
+					printf "E %s (expired %s)\\n", u, certs[serial, "exp_date"]
+				} else if ("R" == certs[serial, "state"]) {
+					printf "R %s (revoked %s)\\n", u, certs[serial, "rev_date"]
+				}
+			} else if ("state-only" == output) {
+				print certs[serial, "state"]
+			}
+		}
+
+		if (db_outdated) {
+			printf ORS "The certificate DB is outdated, please run '"'$0 updatedb'"'." ORS | "cat >&2"
+		}
+	}
+	' "${PKI_DIR:?}/index.txt"
+}
+
 #endif
