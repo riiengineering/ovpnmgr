@@ -246,12 +246,7 @@ create_user_package() {
 #endif
 	#shellcheck disable=SC2035
 	(cd "${tmp_pkg:?}" && tar -c *) \\
-#ifbool USE_PGP_CONFIG
-	| gpg_encrypt "${__create_user_package_email:?}" \\
-	>"${__create_user_package_userdir:?}/config.tar.gpg"
-#else
 	>"${__create_user_package_userdir:?}/config.tar"
-#endif
 
 	rm -R -f "${tmp_pkg:?}"
 
@@ -306,11 +301,7 @@ mail_user_package() {
 #endif
 
 		mime_attach_file \\
-#ifbool USE_PGP_CONFIG
-			"${__mail_user_package_userdir:?}/config.tar.gpg" \\
-#else
 			"${__mail_user_package_userdir:?}/config.tar" \\
-#endif
 			application/tar attachment 'OpenVPN configuration files'
 
 		mime_terminate_mail

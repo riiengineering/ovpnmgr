@@ -46,16 +46,12 @@ set -e -u
 #ifndef USE_PGP_MAIL
 #define USE_PGP_MAIL false
 #endif
-#ifndef USE_PGP_CONFIG
-#define USE_PGP_CONFIG false
-#endif
 #ifndef GNUPGHOME
 #define GNUPGHOME %{CONFDIR}/.gnupg
 #endif
 #else
 #dnl disable all PGP configuration options
 #define USE_PGP_MAIL false
-#define USE_PGP_CONFIG false
 #endif
 #dnl
 #dnl Key pair options
