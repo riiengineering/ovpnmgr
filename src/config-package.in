@@ -16,8 +16,16 @@
 
 require_command mktemp
 
+CLIENT_CONFIG_SKEL="${CONFDIR:?}/client.conf.d"
+
 ensure_package_dir() {
 	test -d "${package_dir}" || mkdir -p "${package_dir}"
+}
+
+require_client_conf_d() {
+	test -d "${CLIENT_CONFIG_SKEL:?}" || {
+		fail "${CLIENT_CONFIG_SKEL:-client.conf.d} directory is missing"
+	}
 }
 
 user_package_path() {
@@ -25,20 +33,82 @@ user_package_path() {
 	test -d "${package_dir:?}/${1:?}"  # return value
 }
 
+prepare_client_config_dir() {
+	# usage: prepare_client_config_dir username dest-dir
+	#
+	# copies all required client config files for $username to $dest-dir
+
+	__prepare_ccd_username=${1:?no username given}
+	__prepare_ccd_destdir=${2:?no destination directory given}
+
+	test -d "${__prepare_ccd_destdir}" || return %{EFAIL}
+
+	# copy files from skeleton directory
+	cp -L -R "${CLIENT_CONFIG_SKEL:?}"/* "${__prepare_ccd_destdir}"/
+
+	# patch @@username@@/@@cn@@ to the real username
+	awk \\
+		-v username="${__create_user_package_username}" \\
+	'{
+		gsub(/@@(cn|username)@@/, username, $0)
+		print
+	}
+	' <"${__prepare_ccd_destdir:?}/config.ovpn" >"${__prepare_ccd_destdir:?}/config.ovpn.tmp" \\
+	&& mv "${__prepare_ccd_destdir:?}/config.ovpn.tmp" "${__prepare_ccd_destdir:?}/config.ovpn"
+
+	# copy user key pair
+
+	__prepare_ccd_src_cert_file="${PKI_DIR:?}/certs/${__prepare_ccd_username:?}.crt"
+	__prepare_ccd_dst_cert_name=$(awk '/^cert[ \\t]/ { sub(/^cert[ \\t]/, "", $0); print }' "${__prepare_ccd_destdir:?}/config.ovpn")
+
+	if test -n "${__prepare_ccd_dst_cert_name-}"
+	then
+		if test -e "${__prepare_ccd_src_cert_file-}"
+		then
+			cp -L "${__prepare_ccd_src_cert_file:?}" "${__prepare_ccd_destdir:?}/${__prepare_ccd_dst_cert_name:?}"
+		else
+			:  # TODO: warn
+		fi
+	fi
+	unset -v __prepare_ccd_src_cert_file __prepare_ccd_dst_cert_name
+
+	__prepare_ccd_src_key_file="${PKI_DIR:?}/private/${__prepare_ccd_username:?}.key"
+	__prepare_ccd_dst_key_name=$(awk '/^key[ \\t]/ { sub(/^key[ \\t]/, "", $0); print }' "${__prepare_ccd_destdir:?}/config.ovpn")
+
+	if test -n "${__prepare_ccd_dst_key_name-}"
+	then
+		if test -e "${__prepare_ccd_src_key_file-}"
+		then
+			cp -L "${__prepare_ccd_src_key_file:?}" "${__prepare_ccd_destdir:?}/${__prepare_ccd_dst_key_name:?}"
+		else
+			:  # TODO: warn
+		fi
+	fi
+	unset -v __prepare_ccd_src_key_file __prepare_ccd_dst_key_name
+
+	unset -v __prepare_ccd_username __prepare_ccd_destdir
+}
+
 create_user_package() {
 	__create_user_package_username=${1:?}
 	__create_user_package_email=${2:?}
 
 	require_ovpn_conf
+	require_client_conf_d
+
+	ca_file="${CLIENT_CONFIG_SKEL:?}/ca.crt"
+
+	test -f "${ca_file:?}" || {
+		fail "${ca_file:?} is missing"
+	}
+
+	cert_file="${PKI_DIR:?}/certs/${__create_user_package_username:?}.crt"
+	key_file="${PKI_DIR:?}/private/${__create_user_package_username:?}.key"
 
 	__create_user_package_userdir=$(user_package_path "${__create_user_package_username:?}") || {
 		ensure_package_dir
 		mkdir "${__create_user_package_userdir:?}"
 	}
-
-	ca_file="${PKI_DIR:?}/ca/ca.crt"
-	cert_file="${PKI_DIR:?}/certs/${__create_user_package_username:?}.crt"
-	key_file="${PKI_DIR:?}/private/${__create_user_package_username:?}.key"
 
 	tmp_pkg=$(mktemp -d "${__create_user_package_userdir:?}/.tmp.XXXXXX") || {
 		fail 'failed to create temp directory. certificate has been signed already'
@@ -48,41 +118,47 @@ create_user_package() {
 	# create Tunnelblick OpenVPN configuration (for Mac OS X)
 	# https://tunnelblick.net
 
-	tblk_resources="${tmp_pkg:?}/${CONFIG_NAME:-openvpn}.tblk/Contents/Resources"
-	mkdir -p "${tblk_resources:?}"
+	__create_user_package_tblk_resources="${tmp_pkg:?}/${CONFIG_NAME:-openvpn}.tblk/Contents/Resources"
+	mkdir -p "${__create_user_package_tblk_resources:?}"
 
-	cp "${ca_file:?}" "${tblk_resources:?}/ca.crt"
-	if test -f "${ta_key-}"
-	then
-		cp "${ta_key:?}" "${tblk_resources:?}/ta.key"
-	fi
+	prepare_client_config_dir "${__create_user_package_username}" "${__create_user_package_tblk_resources}"
 
-	cp "${cert_file:?}" "${tblk_resources:?}/${__create_user_package_username:?}.crt"
-	cp "${key_file:?}" "${tblk_resources:?}/${__create_user_package_username:?}.key"
+	unset -v __create_user_package_tblk_resources
 
-	awk \\
-		-v username="${__create_user_package_username}" \\
-	'# replace @@username@@ with given username
-	{
-		sub(/@@username@@/, username, $0)
-		print
-	}
-	' <"${CONFDIR:?}/config.ovpn" >"${tblk_resources:?}/config.ovpn"
+#endif
+#if test "${USE_CONFIG_OVPN}" = dir
+	# create plain OpenVPN configuration (directory format)
 
-	unset -v tblk_resources
+	__create_user_package_ovpn_confdir="${tmp_pkg:?}/${CONFIG_NAME:-openvpn}"
+	mkdir -p "${__create_user_package_ovpn_confdir:?}"
+
+	prepare_client_config_dir "${__create_user_package_username}" "${__create_user_package_ovpn_confdir}"
+
+	unset -v __create_user_package_ovpn_confdir
 
 #endif
 #if test "${USE_CONFIG_OVPN}" = flat
 	# create plain OpenVPN configuration (flat file including key, certificates)
 
 	awk \\
-		-v ca_file="${ca_file}" \\
+		-v skel_dir="${CLIENT_CONFIG_SKEL:?}" \\
 		-v cert_file="${cert_file}" \\
 		-v key_file="${key_file}" \\
-		-v ta_file="${ta_key-}" \\
-	'# inline files, available for the following openvpn options:
-	# -ca, --cert, --dh, --extra-certs, --key, --pkcs12, --secret, --crl-verify,
-	# --http-proxy-user-pass, --tls-auth and --tls-crypt
+	'# inline configuration, available for the following openvpn options:
+	# --ca, --cert, --dh, --extra-certs, --key, --pkcs12, --secret,
+	# --crl-verify, --http-proxy-user-pass, --tls-auth, --auth-gen-token-secret,
+	# --peer-fingerprint, --tls-crypt, --tls-crypt-v2 and --verify-hash
+
+	# --peer-fingerprint, --verify-hash accept inline data which can be put as
+	# is literally into config.ovpn, so it does not need to be processed here.
+
+	# TODO: config lines should be split into components as is done by
+	# https://github.com/OpenVPN/openvpn/blob/v2.6.4/src/openvpn/options.c#L4935
+
+	function error(msg) {
+		print msg | "cat >&2"
+		close("cat >&2")
+	}
 
 	function inline_file(option, file,    _l) {
 		printf "<%s>" ORS, option
@@ -91,57 +167,81 @@ create_user_package() {
 		}
 		close(file)
 		printf "</%s>" ORS, option
-
 	}
 
-	$1 == "ca" {
-		inline_file($1, ca_file)
-		next
-	}
-	$1 == "cert" {
-		inline_file($1, cert_file)
-		next
-	}
-	$1 == "key" {
-		inline_file($1, key_file)
-		next
-	}
-	$1 == "tls-crypt" || $1 == "tls-auth" {
-		if (ta_file) {
-			inline_file($1, ta_file)
+	{ opt = $1; sub(/^--/, "", opt) }
 
-			if ($1 == "tls-auth" && /[ \\t)[0-9]$/) {
-				printf "key-direction %u" ORS, substr($0, length, 1)
-			}
+	# server only options
+	"dh" == opt ||
+	"extra-certs" == opt {
+		error("option --" opt " is only supported in server mode, ignoring this line.")
+		next
+	}
+
+	# client file options
+	"ca" == opt ||
+	"pkcs12" == opt ||
+	"secret" == opt ||
+	"auth-gen-token-secret" == opt {
+		file = substr($0, index($0, opt) + length(opt) + 1)
+		sub(/^[[:space:]]+/, "", file)
+		sub(/[;#].*$/, "", file)
+
+		inline_file(opt, skel_dir "/" file)
+		next
+	}
+
+	# client specific files
+	"cert" == opt {
+		inline_file(opt, cert_file)
+		next
+	}
+	"key" == opt {
+		inline_file(opt, key_file)
+		next
+	}
+
+	# TODO: --http-proxy-user-pass
+
+	"crl-verify" == opt {
+		if (/[[:space:]]dir$/) {
+			error("option --" opt " with dir flag is not supported in flat files, ignoring this line.")
+			next
+		}
+
+		file = substr($0, index($0, opt) + length(opt) + 1)
+		sub(/^[[:space:]]+/, "", file)
+		sub(/[;#].*$/, "", file)
+
+		inline_file(opt, skel_dir "/" file)
+	}
+
+	"tls-auth" == opt ||
+	"tls-crypt" == opt ||
+	"tls-crypt-v2" == opt {
+		file = substr($0, index($0, opt) + length(opt) + 1)
+		sub(/^[[:space:]]+/, "", file)
+		sub(/[;#].*$/, "", file)
+
+		if ("tls-auth" == opt) {
+			sub(/[[:space:]]+[0-9]+$/, "", file)
+		}
+
+		if ("tls-crypt-v2" == opt) {
+			error("option --" opt " is not (yet) supported, ignoring this line.")
+			next
+		}
+
+		inline_file(opt, skel_dir "/" file)
+
+		if ("tls-auth" == opt && /[[:space:]][0-9]$/) {
+			printf "key-direction %u" ORS, substr($0, length, 1)
 		}
 		next
 	}
 
 	{ print }
-	' <"${CONFDIR:?}/config.ovpn" >"${tmp_pkg:?}/${CONFIG_NAME:-openvpn}.ovpn"
-
-#endif
-#if test "${USE_CONFIG_OVPN}" = dir
-	# create plain OpenVPN configuration (directory format)
-
-	ovpn_confdir="${tmp_pkg:?}/${CONFIG_NAME:-openvpn}"
-	mkdir -p "${ovpn_confdir:?}"
-
-	# FIXME: no code duplication with tblk resources
-	cp "${ca_file:?}" "${ovpn_confdir:?}/ca.crt"
-	if test -f "${ta_key-}"
-	then
-		cp "${ta_key:?}" "${ovpn_confdir:?}/ta.key"
-	fi
-
-	cp "${cert_file:?}" "${ovpn_confdir:?}/${__create_user_package_username:?}.crt"
-	cp "${key_file:?}" "${ovpn_confdir:?}/${__create_user_package_username:?}.key"
-
-	awk -v username="${__create_user_package_username}" '
-	{ sub(/@@username@@/, username, $0); print }
-	' <"${CONFDIR:?}/config.ovpn" >"${tmp_pkg:?}/${CONFIG_NAME:-openvpn}/config.ovpn"
-
-	unset -v ovpn_confdir
+	' <"${CLIENT_CONFIG_SKEL:?}/config.ovpn" >"${tmp_pkg:?}/${CONFIG_NAME:-openvpn}.ovpn"
 
 #endif
 	#shellcheck disable=SC2035
