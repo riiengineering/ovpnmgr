@@ -34,9 +34,6 @@ default_ca = CA_default
 dir = ${ENV::PKI_DIR}
 # Where the issued certs are kept
 certs = ${dir}/certs
-# Where the issued crl are kept
-# XXX: needed?
-crl_dir = ${dir}/crl
 # database index file.
 database = ${dir}/index.txt
 # default place for new certs (by serial).

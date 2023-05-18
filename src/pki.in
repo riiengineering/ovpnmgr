@@ -28,7 +28,6 @@ pki_ensure_dirs() {
 
 	test -d "${PKI_DIR:?}/ca" || mkdir "${PKI_DIR:?}/ca"
 	test -d "${PKI_DIR:?}/certs" || mkdir "${PKI_DIR:?}/certs"
-	test -d "${PKI_DIR:?}/crl" || mkdir "${PKI_DIR:?}/crl"
 	test -d "${PKI_DIR:?}/newcerts" || mkdir "${PKI_DIR:?}/newcerts"
 	test -d "${PKI_DIR:?}/private" || mkdir "${PKI_DIR:?}/private"
 	test -d "${PKI_DIR:?}/reqs" || mkdir "${PKI_DIR:?}/reqs"
