@@ -4,6 +4,9 @@
 #dnl
 #ifndef _HAVE_GPG_IN
 #define _HAVE_GPG_IN
+#ifbool !USE_PGP
+#error PGP is disabled in build.config, cannot use gpg.in
+#endif
 #include base.in
 
 # PGP encryption (using GnuPG)
@@ -30,19 +33,19 @@ gpg_assert_homedir() {
 gpg_encrypt() {
 	gpg_assert_homedir
 
+	if test -n "${PGP_ADDITIONAL_RECIPIENTS-}"
+	then
+		set -- "$@" ${PGP_ADDITIONAL_RECIPIENTS:?}
+	fi
+
+	: "${1:?no recipients}"
+
 	for __gpg_encrypt_a
 	do
 		set -- "$@" --recipient "${__gpg_encrypt_a}"
 		shift
 	done
 	unset -v __gpg_encrypt_a
-
-	if test -n "${pgp_additional_recipient-}"
-	then
-		set -- "$@" --recipient "${pgp_additional_recipient:?}"
-	fi
-
-	: "${1:?no recipients}"
 
 	gpg --batch --quiet --encrypt --armor "$@"
 }
