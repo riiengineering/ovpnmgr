@@ -150,14 +150,25 @@ create_user_package() {
 
 #ifbool USE_CONFIG_TBLK
 	# create Tunnelblick OpenVPN configuration (for Mac OS X)
-	# https://tunnelblick.net
+	# https://tunnelblick.net/cPkgs.html
 
-	__create_user_package_tblk_resources="${tmp_pkg:?}/${CONFIG_NAME:-openvpn}.tblk/Contents/Resources"
-	mkdir -p "${__create_user_package_tblk_resources:?}"
+	__create_user_package_tblk_contents="${tmp_pkg:?}/${CONFIG_NAME:-openvpn}.tblk/Contents"
+	mkdir -p "${__create_user_package_tblk_contents:?}/Resources"
 
-	prepare_client_config_dir "${__create_user_package_username}" "${__create_user_package_tblk_resources}"
+	cat <<-EOF >"${__create_user_package_tblk_contents:?}/Info.plist"
+	<?xml version="1.0" encoding="UTF-8"?>
+	<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+	<plist version="1.0">
+	<dict>
+	    <key>TBPackageVersion</key>
+	    <string>1</string>
+	</dict>
+	</plist>
+	EOF
 
-	unset -v __create_user_package_tblk_resources
+	prepare_client_config_dir "${__create_user_package_username}" "${__create_user_package_tblk_contents:?}/Resources"
+
+	unset -v __create_user_package_tblk_contents
 
 #endif
 #if test "${USE_CONFIG_OVPN}" = dir
