@@ -273,9 +273,9 @@ mail_user_package() {
 		# body
 		mime_start_mail
 
-		if test -e "${CONFDIR:?}/new-user-mail"
+		if test -e "${CONFDIR:?}/config-mail"
 		then
-			cat "${CONFDIR:?}/new-user-mail"
+			cat "${CONFDIR:?}/config-mail"
 		else
 			# default message
 			cat <<-'EOF'
