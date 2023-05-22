@@ -12,7 +12,7 @@
 
 # MIME mail
 
-boundary_chars='A-Za-z0-9+_.:=?'
+boundary_chars='A-Za-z0-9+_.='
 
 mime_boundary() {
 	if test -z "${_MIME_BOUNDARY-}"
