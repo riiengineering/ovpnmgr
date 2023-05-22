@@ -4,9 +4,6 @@
 #dnl
 #include pki.in
 #include config-package.in
-#ifbool USE_MAIL_CONFIG
-#include mail.in
-#endif
 
 # renew command
 
@@ -67,28 +64,11 @@ cmd_renew() {
 		# TODO: merge code with cmd-add-user
 		pass=$(gen_password) || fail 'password generation failed'
 
-#ifbool USE_PGP
-		if test -f "${user_package_dir:?}/password.txt.gpg"
-		then
-			mv "${user_package_dir:?}/password.txt.gpg" "${user_package_dir:?}/password.txt.old.gpg"
-		fi
+		store_user_passphrase "${username:?}" "${pass:?}" \\
+		|| return %{EFAIL}
 
-		# FIXME: need to receive public key first
-		gpg_encrypt "${email}" >"${user_package_dir:?}/password.txt.gpg" <<-EOF || return %{EFAIL}
-		${pass}
-		EOF
-#else
-		if test -f "${user_package_dir:?}/password.txt"
-		then
-			mv "${user_package_dir:?}/password.txt" "${user_package_dir:?}/password.txt.old"
-		fi
-
-		cat >"${user_package_dir:?}/password.txt" <<-EOF || return %{EFAIL}
-		${pass}
-		EOF
-#endif
-
-		pki_rebuild "${username:?}" "${email:?}" "${pass:?}"
+		pki_rebuild "${username:?}" "${email:?}" "${pass:?}" \\
+		|| fail 'rebuilding key pair failed'
 	else
 		printf 'Renewing user certificate for %s...' "${username:?}"
 		pki_resign_user_cert "${username:?}" || fail 're-signing certificate failed'

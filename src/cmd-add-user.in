@@ -38,36 +38,22 @@ cmd_add_user() {
 		fail 'user package already exists (did you mean to renew?)'
 	fi
 
-	rm -R -f "${user_package_dir:?}.tmp"
-	mkdir "${user_package_dir:?}.tmp"
+	# FIXME: improve error handling
 
-	printf '%s\\n' "${email:?}" >>"${user_package_dir:?}.tmp/email"
+	mkdir "${user_package_dir:?}"
 
-	# first, get the user's PGP key, because without it we cannot store their credentials.
-	# printf 'Fetching PGP key for %s…\n' "${email}"
-	# gpg_fetch_key "${email}" || return %{EFAIL}
-
-	# TODO: merge code with cmd-renew
+	printf '%s\\n' "${email:?}" >>"${user_package_dir:?}/email"
 
 	pass=$(gen_password) || fail 'password generation failed'
 
-#ifbool USE_PGP
-	# FIXME: need to receive public key first
-	gpg_encrypt "${email}" >"${user_package_dir:?}.tmp/password.txt.gpg" <<-EOF || return %{EFAIL}
-	${pass}
-	EOF
-#else
-	cat >"${user_package_dir:?}.tmp/password.txt" <<-EOF || return %{EFAIL}
-	${pass}
-	EOF
-#endif
-
+	store_user_passphrase "${username:?}" "${pass:?}" || return %{EFAIL}
 	pki_create_user_keypair "${username:?}" "${email:?}" "${pass:?}" || return %{EFAIL}
 
-	mv "${user_package_dir:?}.tmp" "${user_package_dir:?}"
 	create_user_package "${username:?}" "${email:?}" || return %{EFAIL}
 #ifbool USE_MAIL_CONFIG
 
-	mail_user_package "${username:?}" "${email:?}"
+	mail_user_package "${username:?}" "${email:?}" || {
+		printf 'mailing user package failed. Please send the config tar ball to the user manually.' >&2
+	}
 #endif
 }

@@ -92,6 +92,43 @@ prepare_client_config_dir() {
 	unset -v __prepare_ccd_username __prepare_ccd_destdir
 }
 
+store_user_passphrase() {
+	# usage: store_user_passphrase user passphrase
+
+	__store_user_passphrase_user_package_dir=$(user_package_path "${1:?no username given}")
+
+	if test -f "${__store_user_passphrase_user_package_dir:?}/password.txt.gpg"
+	then
+		mv "${__store_user_passphrase_user_package_dir:?}/password.txt.gpg" "${__store_user_passphrase_user_package_dir:?}/password.txt.old.gpg"
+	fi
+	if test -f "${__store_user_passphrase_user_package_dir:?}/password.txt"
+	then
+		mv "${__store_user_passphrase_user_package_dir:?}/password.txt" "${__store_user_passphrase_user_package_dir:?}/password.txt.old"
+	fi
+
+#ifbool USE_PGP
+	if ${PGP_USER_IS_RECIPIENT:-true}
+	then
+		# TODO: first, get the user's PGP key, because without it we cannot
+		#       store their credentials.
+		# printf 'Fetching PGP key for %s…\n' "${email}"
+		# gpg_fetch_key "${email}" || return %{EFAIL}
+
+		gpg_encrypt "${email}" >"${user_package_dir:?}/password.txt.gpg"
+	else
+		gpg_encrypt >"${user_package_dir:?}/password.txt.gpg"
+	fi <<-EOF || return %{EFAIL}
+	${2-}
+	EOF
+#else
+	cat >"${__store_user_passphrase_user_package_dir:?}/password.txt" <<-EOF || return %{EFAIL}
+	${2-}
+	EOF
+#endif
+
+	unset -v __store_user_passphrase_user_package_dir
+}
+
 create_user_package() {
 	__create_user_package_username=${1:?}
 	__create_user_package_email=${2:?}
