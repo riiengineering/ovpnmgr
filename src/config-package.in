@@ -324,7 +324,13 @@ mail_user_package() {
 
 		if test -e "${CONFDIR:?}/config-mail"
 		then
-			cat "${CONFDIR:?}/config-mail"
+			# NOTE: append 2 empty lines to make attachment appear separated
+			#       with an empty line in MUAs which display attachments inline
+			#       (hi, Apple Mail).
+			cat "${CONFDIR:?}/config-mail" - <<-'EOF'
+
+
+			EOF
 		else
 			# default message
 			cat <<-'EOF'
