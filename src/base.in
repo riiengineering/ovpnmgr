@@ -143,10 +143,4 @@ require_command() {
 	command -v "${1:?}" >/dev/null 2>&1 || fail "$1: command not found"
 }
 
-require_ovpn_conf() {
-	test -f "${CONFDIR:?}/config.ovpn" || {
-		fail 'OpenVPN client configuration template is missing. Aborting.'
-	}
-}
-
 #endif

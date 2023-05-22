@@ -26,6 +26,9 @@ require_client_conf_d() {
 	test -d "${CLIENT_CONFIG_SKEL:?}" || {
 		fail "${CLIENT_CONFIG_SKEL:-client.conf.d} directory is missing"
 	}
+	test -e "${CLIENT_CONFIG_SKEL:?}/config.ovpn" || {
+		fail "${CLIENT_CONFIG_SKEL:-client.conf.d}/config.ovpn is missing"
+	}
 }
 
 user_package_path() {
@@ -93,14 +96,7 @@ create_user_package() {
 	__create_user_package_username=${1:?}
 	__create_user_package_email=${2:?}
 
-	require_ovpn_conf
 	require_client_conf_d
-
-	ca_file="${CLIENT_CONFIG_SKEL:?}/ca.crt"
-
-	test -f "${ca_file:?}" || {
-		fail "${ca_file:?} is missing"
-	}
 
 	cert_file="${PKI_DIR:?}/certs/${__create_user_package_username:?}.crt"
 	key_file="${PKI_DIR:?}/private/${__create_user_package_username:?}.key"

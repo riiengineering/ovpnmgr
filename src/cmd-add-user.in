@@ -28,7 +28,7 @@ cmd_add_user() {
 			;;
 	esac
 
-	require_ovpn_conf
+	require_client_conf_d
 
 	user_package_dir=$(user_package_path "${username:?}") || :
 
