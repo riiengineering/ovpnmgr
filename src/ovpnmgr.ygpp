@@ -115,6 +115,7 @@ fi
 #include cmd-create-ca.in
 #include cmd-list-users.in
 #include cmd-renew.in
+#include cmd-resend.in
 #include cmd-revoke.in
 #include cmd-updatedb.in
 
@@ -155,6 +156,10 @@ in
 		cmd_list_users "$@" ;;
 	(renew)
 		cmd_renew "$@" ;;
+#ifbool USE_MAIL_CONFIG
+	(resend)
+		cmd_resend "$@" ;;
+#endif
 	(revoke)
 		cmd_revoke "$@" ;;
 	(updatedb)

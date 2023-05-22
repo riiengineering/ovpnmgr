@@ -1,0 +1,47 @@
+#dnl -*- mode: shell-script; indent-tabs-mode: t -*-
+#dnl
+#dnl This module implements the resend command.
+#dnl
+#ifbool USE_MAIL_CONFIG
+#include config-package.in
+
+# resend command
+
+cmd_resend_usage() {
+	printf 'usage: %s resend USERNAME\\n' "$0"
+}
+
+cmd_resend() {
+	case $#
+	in
+		(1)
+			username=${1:?}
+			;;
+		(*)
+			cmd_resend_usage >&2
+			return %{EUSAGE}
+			;;
+	esac
+
+	user_package_dir=$(user_package_path "${username:?}") \\
+	&& test -d "${user_package_dir:?}" || {
+		fail 'no such user exists'
+	}
+
+	if pki_cn_is_revoked "${username:?}"
+	then
+		fail 'The certificate of ' "${username:-?}" 'is aborted. Refusing to resend.'
+	fi
+
+	test -s "${user_package_dir:?}/email" || {
+		fail 'The e-mail of' "${username:-?}" 'is unknown. Aborting.'
+	}
+
+	email=$(cat "${user_package_dir:?}/email")
+
+	# send e-mail
+	mail_user_package "${username:?}" "${email:?}" || {
+		printf 'mailing user package failed.'
+	}
+}
+#endif

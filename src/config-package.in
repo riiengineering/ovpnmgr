@@ -301,6 +301,10 @@ mail_user_package() {
 
 	: "${EMAIL:?}"  # require sender email to be set
 
+	test -f "${__mail_user_package_userdir:?}/config.tar" || {
+		printf "config.tar is missing for user ${__mail_user_package_username:-?}"
+	}
+
 	if confirm 'Do you want to e-mail the VPN configuration to the user?' y
 	then
 		__mail_user_package_send=true
