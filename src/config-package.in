@@ -17,6 +17,7 @@
 require_command mktemp
 
 CLIENT_CONFIG_SKEL="${CONFDIR:?}/client.conf.d"
+MAILLOG_DATE_FMT='%Y-%m-%dT%H:%M:%S'
 
 ensure_package_dir() {
 	test -d "${package_dir}" || mkdir -p "${package_dir}"
@@ -356,15 +357,15 @@ mail_user_package() {
 	| {
 		if ${__mail_user_package_send?}
 		then
-			tee "${__mail_user_package_userdir:?}/maillog/$(date).eml" \\
+			tee "${__mail_user_package_userdir:?}/maillog/$(date +"${MAILLOG_DATE_FMT}").eml" \\
 			| sendmail -t
 		else
 			test -d "${__mail_user_package_userdir:?}/maillog/unsent" \\
 			| mkdir "${__mail_user_package_userdir:?}/maillog/unsent" \\
 
-			cat >"${__mail_user_package_userdir:?}/maillog/unsent/$(date).eml"
+			cat >"${__mail_user_package_userdir:?}/maillog/unsent/$(date +"${MAILLOG_DATE_FMT}").eml"
 			echo 'The e-mail was not send. Its content was stored in case you want to send it later:'
-			echo "${__mail_user_package_userdir:?}/maillog/unsent/$(date).eml"
+			echo "${__mail_user_package_userdir:?}/maillog/unsent/$(date +"${MAILLOG_DATE_FMT}").eml"
 		fi
 	}
 }
