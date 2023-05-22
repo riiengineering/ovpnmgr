@@ -98,7 +98,7 @@ cmd_renew() {
 	create_user_package "${username:?}" "${email:?}" || return %{EFAIL}
 #ifbool USE_MAIL_CONFIG
 
-	# send email
+	# send e-mail
 	mail_user_package "${username:?}" "${email:?}" || {
 		printf 'mailing user package failed. Please send the config tar ball to the user manually.' >&2
 	}

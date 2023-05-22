@@ -263,6 +263,13 @@ mail_user_package() {
 
 	: "${EMAIL:?}"  # require sender email to be set
 
+	if confirm 'Do you want to e-mail the VPN configuration to the user?' y
+	then
+		__mail_user_package_send=true
+	else
+		__mail_user_package_send=false
+	fi
+
 	{
 		# header
 		printf '%s: %s\\n' \\
@@ -309,8 +316,20 @@ mail_user_package() {
 #else
 	| draft_mail \\
 #endif
-	| tee "${__mail_user_package_userdir:?}/maillog/$(date).eml" \\
-	| sendmail -t
+	| {
+		if ${__mail_user_package_send?}
+		then
+			tee "${__mail_user_package_userdir:?}/maillog/$(date).eml" \\
+			| sendmail -t
+		else
+			test -d "${__mail_user_package_userdir:?}/maillog/unsent" \\
+			| mkdir "${__mail_user_package_userdir:?}/maillog/unsent" \\
+
+			cat >"${__mail_user_package_userdir:?}/maillog/unsent/$(date).eml"
+			echo 'The e-mail was not send. Its content was stored in case you want to send it later:'
+			echo "${__mail_user_package_userdir:?}/maillog/unsent/$(date).eml"
+		fi
+	}
 }
 #endif
 
