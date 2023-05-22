@@ -25,7 +25,9 @@ cmd_renew() {
 			;;
 	esac
 
+	ensure_package_dir
 	require_client_conf_d
+	pki_assert_ca
 
 	user_package_dir=$(user_package_path "${username:?}")
 
