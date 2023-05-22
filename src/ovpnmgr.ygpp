@@ -87,7 +87,7 @@ CONFIG_NAME='OpenVPN'
 EMAIL=${LOGNAME:-$(whoami)}
 PKI_DIR="${CONFDIR:?}/pki"
 CERT_LIFETIME=%{DEFAULT_CERT_LIFETIME}
-
+PGP_USER_IS_RECIPIENT=true
 
 if test -f "${CONFDIR:?}/config"
 then
@@ -99,6 +99,17 @@ set +a
 #include base.in
 
 require_command date
+
+# check config values
+if test $((CERT_LIFETIME)) -le 0
+then
+	fail 'config CERT_LIFETIME must be an integer greater than 0'
+fi
+if ! check_bool "${PGP_USER_IS_RECIPIENT-}"
+then
+	fail 'config PGP_USER_IS_RECIPIENT must be either "true" or "false"'
+fi
+
 
 #include cmd-add-user.in
 #include cmd-create-ca.in

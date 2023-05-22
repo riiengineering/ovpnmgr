@@ -143,4 +143,16 @@ require_command() {
 	command -v "${1:?}" >/dev/null 2>&1 || fail "$1: command not found"
 }
 
+check_bool() {
+	case ${1-}
+	in
+		(true|false)
+			return 0
+			;;
+		(*)
+			return 1
+			;;
+	esac
+}
+
 #endif
