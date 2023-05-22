@@ -261,6 +261,8 @@ mail_user_package() {
 	test -d "${__mail_user_package_userdir:?}/maillog" \\
 	|| mkdir "${__mail_user_package_userdir:?}/maillog"
 
+	: "${EMAIL:?}"  # require sender email to be set
+
 	{
 		# header
 		printf '%s: %s\\n' \\

@@ -85,8 +85,6 @@ mime_attach_file() {
 # sending e-mail
 
 draft_mail() {
-	: "${EMAIL:?}"
-
 	awk -v mail_date="$(date '+%a, %d %h %Y %H:%M:%S %z')" '
 	BEGIN {
 		RS = "\\r?\\n"
@@ -118,8 +116,6 @@ draft_mail() {
 #ifbool USE_PGP_MAIL
 
 draft_pgp_mail() {
-	: "${EMAIL:?}"
-
 	{
 		printf 'Content-Type: multipart/encrypted; boundary="%s"; protocol="application/pgp-encrypted"\\n' "$(mime_boundary)"
 		echo "Content-Transfer-Encoding: 7bit"
