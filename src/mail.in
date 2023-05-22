@@ -92,6 +92,9 @@ draft_mail() {
 		FS = "\\n"
 
 		headers["Date"] = mail_date
+#ifndef NO_XMAILER
+		headers["X-Mailer"] = "ovpnmgr by riiengineering.ch"
+#endif
 
 		in_header = 1
 	}
