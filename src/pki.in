@@ -35,10 +35,60 @@ pki_ensure_dirs() {
 
 pki_ensure_openssl_cnf() {
 	pki_ensure_pkidir
-	test -f "${PKI_DIR:?}/openssl.cnf" || cat >"${PKI_DIR:?}/openssl.cnf" <<'OPENSSL_CNF'
+	test -f "${PKI_DIR:?}/openssl.cnf" || {
+		cat >"${PKI_DIR:?}/openssl.cnf" <<'OPENSSL_CNF'
 #include ../openssl.cnf
 
 OPENSSL_CNF
+		openssl_cnf_is_default=true
+	}
+}
+
+pki_update_openssl_cnf_from_ca() {
+	${openssl_cnf_is_default:-false} || return %{PKI_EOK}
+	pki_ca_exists || return %{PKI_ENOCA}
+
+	pki_openssl x509 \\
+		-noout -in "${PKI_DIR:?}/ca/ca.crt" \\
+		-subject -nameopt utf8,sep_multiline \\
+	| awk 'BEGIN {
+		fieldmap["COUNTRY"] = "C"
+		fieldmap["STATE"] = "ST"
+		fieldmap["CITY"] = "L"
+		fieldmap["ORG"] = "O"
+		fieldmap["OU"] = "OU"
+		fieldmap["CN"] = "CN"
+		fieldmap["EMAIL"] = "emailAddress"
+
+		while (0 < ("cat" | getline)) {
+			if (/^subject=$/)
+				continue
+
+			sub(/^[ \\t]*/, "")
+			subj_comp[substr($0, 1, index($0, "=")-1)] = \\
+				substr($0, index($0, "=")+1)
+		}
+		close("cat")
+	}
+
+	!s && /^REQ_DEFAULT_[A-Z]+[ \\t]*=/ {
+		match($0, /^[A-Z_]+[ \\t]*=[ \\t]*/)
+
+		field = substr($0, RSTART, RLENGTH)
+		sub(/[ \\t]*=[ \\t]*$/, "", field)
+		sub(/^REQ_DEFAULT_/, "", field)
+
+		if ((fieldmap[field] in subj_comp)) {
+			$0 = substr($0, RSTART, RLENGTH) subj_comp[fieldmap[field]]
+		}
+	}
+
+	/^\\[.*\\]$/ { s = 1 }
+
+	{ print }
+	' "${PKI_DIR:?}/openssl.cnf" >"${PKI_DIR:?}/openssl.cnf.tmp" \\
+	&& mv "${PKI_DIR:?}/openssl.cnf.tmp" "${PKI_DIR:?}/openssl.cnf" \\
+	|| rm -f "${PKI_DIR:?}/openssl.cnf.tmp"
 }
 
 pki_openssl() {
@@ -221,6 +271,10 @@ pki_create_ca() {
 	printf '%s\\n' '%{SERIAL_START}' >"${PKI_DIR:?}/serial" \\
 	|| fail 'failed to create serial file (file permissions?)'
 #endif
+
+	# update openssl.cnf DN defaults with values from CA if openssl.cnf has been
+	# created from defaults
+	pki_update_openssl_cnf_from_ca || :
 }
 
 pki_create_user_keypair() {

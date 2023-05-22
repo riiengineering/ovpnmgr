@@ -6,21 +6,20 @@
 # reformatted for easier manipulation using scripts
 # adjusted for the needs of ovpnmgr
 
+config_diagnostics = 1
+
+# environment defaults
+HOME = ${ENV::PKI_DIR}
+CERT_LIFETIME = 365
 REQ_DN_MODE = org
 
 REQ_DEFAULT_COUNTRY = CH
 REQ_DEFAULT_STATE = SG
-REQ_DEFAULT_CITY =
+REQ_DEFAULT_CITY = 
 REQ_DEFAULT_ORG = riiengineering
-REQ_DEFAULT_OU =
-REQ_DEFAULT_CN =
-REQ_DEFAULT_EMAIL =
-
-# environment defaults
-HOME = ${ENV::PKI_DIR}
-REQ_DN_MODE = org
-
-config_diagnostics = 1
+REQ_DEFAULT_OU = 
+REQ_DEFAULT_CN = 
+REQ_DEFAULT_EMAIL = 
 
 ####################################################################
 [ ca ]
@@ -63,7 +62,7 @@ name_opt = ca_default
 cert_opt = ca_default
 
 # how long to certify for
-default_days = 365
+default_days = ${ENV::CERT_LIFETIME}
 # how long before next CRL
 default_crl_days = 30
 # use public key default MD
