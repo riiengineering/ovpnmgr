@@ -486,7 +486,7 @@ pki_index_parse() {
 	#
 	# options are:
 	# - filter:subject-field=value
-	# - output:{human|state-only}
+	# - output:{human|cn-only|state-only}
 	# - states:{V|R|E}[,...]
 
 	for __pki_index_parse_opt
@@ -555,7 +555,6 @@ pki_index_parse() {
 		if (filter_states) {
 			gsub(/,/, "|", filter_states)
 			filter_states = "^" filter_states "$"
-			print filter_states
 		}
 
 		if (!output) {
@@ -632,6 +631,8 @@ pki_index_parse() {
 				} else if ("R" == certs[serial, "state"]) {
 					printf "R %s (revoked %s)\\n", u, certs[serial, "rev_date"]
 				}
+			} else if ("cn-only" == output) {
+				print certs[serial, "dn", "CN"]
 			} else if ("state-only" == output) {
 				print certs[serial, "state"]
 			}

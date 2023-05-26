@@ -118,6 +118,7 @@ fi
 #include cmd-resend.in
 #include cmd-revoke.in
 #include cmd-updatedb.in
+#include cmd-expiring-soon.in
 
 # usage & help
 
@@ -152,6 +153,8 @@ in
 		cmd_add_user "$@" ;;
 	(create-ca)
 		cmd_create_ca "$@" ;;
+	(expiring-soon)
+		cmd_expiring_soon "$@" ;;
 	(list-users)
 		cmd_list_users "$@" ;;
 	(renew)

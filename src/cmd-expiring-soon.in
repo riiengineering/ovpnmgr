@@ -1,0 +1,43 @@
+#dnl -*- mode: shell-script; indent-tabs-mode: t -*-
+#dnl
+#dnl This module implements the expiring-soon command.
+#dnl
+#include pki.in
+
+# expiring-soon command
+
+expire_alarm_threshold=$((30 * 24 * 60 * 60))
+
+cmd_expiring_soon_usage() {
+	printf 'usage: %s expiring-soon\\n' "$0"
+}
+
+cmd_expiring_soon() {
+	case $#
+	in
+		(0)
+			;;
+		(*)
+			cmd_expiring_soon_usage >&2
+			return %{EUSAGE}
+			;;
+	esac
+
+	_rc=%{EOK}
+	while read -r _cn
+	do
+		_crtfile="${PKI_DIR:?}/certs/${_cn:?}.crt"
+
+		openssl x509 -in "${_crtfile}" -noout -checkend $((expire_alarm_threshold)) >/dev/null || {
+			# user certificate will expire within $expire_alarm_threshold
+			printf '%s: certificate will expire soon (%s).\\n' \\
+				"${_cn}" \\
+				"$(openssl x509 -in "${_crtfile}" -noout -enddate | sed 's/^[^=]*=//')"
+			_rc=%{EFAIL}
+		}
+	done <<-EOF
+	$(pki_index_parse states:V output:cn-only)
+	EOF
+
+	return $((_rc))
+}
