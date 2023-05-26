@@ -36,7 +36,7 @@ certs = ${dir}/certs
 # database index file.
 database = ${dir}/index.txt
 # default place for new certs (by serial).
-new_certs_dir = ${dir}/certs
+new_certs_dir = ${dir}/newcerts
 
 # unique_subject = no allows to renew certificates which have not been revoked
 unique_subject = no
