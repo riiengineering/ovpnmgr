@@ -1,0 +1,25 @@
+#dnl -*- mode: shell-script; indent-tabs-mode: t -*-
+#dnl
+#dnl This module implements the gencrl command.
+#dnl
+#include pki.in
+
+# gencrl command
+
+cmd_gencrl_usage() {
+	printf 'usage: %s gencrl\\n' "$0"
+}
+
+cmd_gencrl() {
+	case $#
+	in
+		(0)
+			;;
+		(*)
+			cmd_gencrl_usage >&2
+			return %{EUSAGE}
+			;;
+	esac
+
+	pki_gencrl
+}

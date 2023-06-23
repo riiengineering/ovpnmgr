@@ -155,6 +155,8 @@ in
 		cmd_create_ca "$@" ;;
 	(expiring-soon)
 		cmd_expiring_soon "$@" ;;
+	(gencrl)
+		cmd_gencrl "$@" ;;
 	(list-users)
 		cmd_list_users "$@" ;;
 	(renew)
