@@ -130,7 +130,33 @@ help() {
 	usage
 	cat <<-'EOF'
 
-	TODO
+	Commands:
+
+	help        print this help text.
+
+	create-ca   interactively generate a new CA certificate.
+
+	add-user USERNAME USER_EMAIL
+	            generate a new user key pair.
+
+	list-users
+	            list all user key pairs and their status/expiry date.
+
+	expiring-soon
+	            list all key pairs expiring soon.
+
+	renew USERNAME
+	            renew the key pair for USERNAME.
+
+	revoke USERNAME
+	            renew the key pair of USERNAME.
+
+	gencrl      generate or update CRL.
+
+	updatedb    update the certificate statuses in index.txt.
+	            This command typically only needs to be run when list-users
+	            tells you to.
+
 	EOF
 }
 
