@@ -120,6 +120,7 @@ fi
 #include cmd-gencrl.in
 #include cmd-updatedb.in
 #include cmd-expiring-soon.in
+#include cmd-monitor.in
 
 # usage & help
 
@@ -145,6 +146,10 @@ help() {
 
 	expiring-soon
 	            list all key pairs expiring soon.
+
+	monitor [-q]
+	            check if CA and CRL are present and valid, and
+	            list user certificates expiring soon.
 
 	renew USERNAME
 	            renew the key pair for USERNAME.
@@ -186,6 +191,8 @@ in
 		cmd_gencrl "$@" ;;
 	(list-users)
 		cmd_list_users "$@" ;;
+	(monitor)
+		cmd_monitor "$@" ;;
 	(renew)
 		cmd_renew "$@" ;;
 #ifbool USE_MAIL_CONFIG

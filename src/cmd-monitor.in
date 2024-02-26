@@ -1,0 +1,123 @@
+#dnl -*- mode: shell-script; indent-tabs-mode: t -*-
+#dnl
+#dnl This module implements the monitor command.
+#dnl
+#ifndef _HAVE_CMD_MONITOR_IN
+#define _HAVE_CMD_MONITOR_IN
+#include pki.in
+#include cmd-expiring-soon.in
+
+# monitor command
+
+monitor_alarm_ca_days=60
+monitor_alarm_crl_days=7
+monitor_alarm_user_days=30
+
+cmd_monitor_usage() {
+	printf 'usage: %s monitor [-q]\\n' "$0"
+}
+
+cmd_monitor_check_ca() {
+	if pki_ca_exists
+	then
+		if ! pki_check_cert_lifetime "${PKI_DIR:?}/ca/ca.crt" 0
+		then
+			# CA is already expired
+			printf 'error: CA is expired since %s\\n' >&2 \\
+				"$(pki_cert_getfield "${PKI_DIR:?}/ca/ca.crt" enddate)"
+			return %{EFAIL}
+		elif ! pki_check_cert_lifetime "${PKI_DIR:?}/ca/ca.crt" $((monitor_alarm_ca_days))
+		then
+			# CA will expire soon
+			printf 'warning: CA will expire soon: %s\\n' >&2 \\
+				"$(pki_cert_getfield "${PKI_DIR:?}/ca/ca.crt" enddate)"
+			return %{EOK}
+		fi
+	else
+		printf 'error: CA does not exist.\\n' >&2
+		return %{PKI_ENOCA}
+	fi
+
+	${cmd_monitor_quiet?} || printf 'CA valid until %s. OK\\n' \
+		"$(pki_cert_getfield "${PKI_DIR:?}/ca/ca.crt" enddate)"
+}
+cmd_monitor_check_crl() {
+	if ! pki_check_crl_verify >/dev/null 2>&1
+	then
+		# CRL cannot be verified
+		printf 'error: CRL cannot be verified: %s.\\n' >&2 \\
+			"$(pki_check_crl_verify 2>&1)"
+		return %{EFAIL}
+	elif ! pki_check_crl_lifetime 0
+	then
+		# CRL is already expired
+		printf 'error: CRL is expired since %s\\n' >&2 \\
+			"$(pki_crl_nextupdate)"
+		return %{EFAIL}
+	elif ! pki_check_crl_lifetime $((monitor_alarm_crl_days))
+	then
+		# CRL will expire soon
+		printf 'warning: CRL will expire in the next %u days: %s\\n' >&2 \\
+			$((monitor_alarm_crl_days)) \\
+			"$(pki_crl_nextupdate)"
+		return %{EOK}
+	else
+		# CRL is good
+		${cmd_monitor_quiet?} || printf 'CRL valid until %s. OK\\n' \\
+			"$(pki_crl_nextupdate)"
+		return %{EOK}
+	fi
+}
+
+cmd_monitor_check_certs() {
+	if __cmd_monitor_check_certs_errors=$(cmd_expiring_soon 2>&1)
+	then
+		${cmd_monitor_quiet?} || printf 'User certificates OK\\n'
+		return %{EOK}
+	else
+		printf 'warning: some user certificates expire soon.\\n' >&2
+		printf '%s\\n' "${__cmd_monitor_check_certs_errors-}" >&2
+		return %{EFAIL}
+	fi
+}
+
+cmd_monitor() {
+	cmd_monitor_quiet=false
+
+	case $#
+	in
+		(0)
+			;;
+		(1)
+			case ${1}
+			in
+				(-q)
+					cmd_monitor_quiet=true
+					;;
+				(*)
+					cmd_monitor_usage >&2
+					return %{EUSAGE}
+					;;
+			esac
+			;;
+		(*)
+			cmd_monitor_usage >&2
+			return %{EUSAGE}
+			;;
+	esac
+
+	_rc=%{EOK}
+
+	if cmd_monitor_check_ca
+	then
+		# proceed with other checks
+		cmd_monitor_check_crl || _rc=%{EFAIL}
+		cmd_monitor_check_certs || _rc=%{EFAIL}
+	else
+		_rc=%{EFAIL}
+	fi
+
+	return $((_rc))
+}
+
+#endif

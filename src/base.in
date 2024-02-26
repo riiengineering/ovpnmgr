@@ -155,4 +155,41 @@ check_bool() {
 	esac
 }
 
+date_iso8601_to_epoch() {
+	# usage: date_iso8601_to_epoch iso8601_date
+	# prints the ISO 8601 date string converted to epoch seconds.
+	#
+	# NOTE: this function only works with dates in UTC
+
+	case $1
+	in
+		# 2023-06-25 08:37:26Z
+		# 2023-06-25T08:37:26Z
+		([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9][\\ T][0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z)
+			# valid format
+			;;
+		(*)
+			return %{EFAIL}
+	esac
+
+	(
+		read -r Y m d H M S <<-EOD
+		$(printf '%s\\n' "$1" | sed -e 's/^\\(....\\)-\\(..\\)-\\(..\\)[ T]\\(..\\):\\(..\\):\\(..\\)Z$/\\1 \\2 \\3 \\4 \\5 \\6/' -e 's/ 0/ /g')
+		EOD
+
+		# Inspiration:
+		# https://www.etalabs.net/sh_tricks.html
+		# https://astronomy.stackexchange.com/questions/2407/calculate-day-of-the-year-for-a-given-date
+
+		_s=$(( (Y-1600)*365+((Y-1600)/4-(Y-1600)/100+(Y-1600)/400)-135140 ))
+
+		_s=$(( _s + ((275*m/9)-(((m+9)/12)*(1+!(0==(Y%4)&&(0!=(Y%100)||0==(Y%400)))))+d-30) ))
+		# HACK for leap years
+		_s=$(( _s - (0==(Y%4)&&(0!=(Y%100)||0==(Y%400))) ))
+		_s=$(( _s*86400 + ((H*60+M)*60+S) ))
+
+		echo $((_s))
+	)
+}
+
 #endif

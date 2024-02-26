@@ -125,6 +125,28 @@ pki_check_cert_lifetime() {
 	>/dev/null
 }
 
+pki_check_crl_verify() {
+	# usage: pki_check_crl_valid
+	# returns 0 if the CRL could be verified.
+	#
+	# NOTE: this command produces output
+	pki_openssl crl -verify -noout \\
+		-in "${PKI_DIR:?}/crl.pem" \\
+		-CAfile "${PKI_DIR:?}/ca/ca.crt" 2>&1
+}
+pki_crl_nextupdate() {
+	# usage: pki_crl_nextupdate
+	# prints the nextUpdate date of the CRL
+	pki_openssl crl -noout -in "${PKI_DIR:?}/crl.pem" -dateopt iso_8601 -nextupdate \\
+	| sed 's/^nextUpdate=//'
+}
+pki_check_crl_lifetime() {
+	# usage: pki_check_crl_lifetime min-rest-days
+	# return 0 if the CRL is still valid at least min-rest-days
+
+	test $(($(date -u +%s) + $1*86400)) -lt "$(date_iso8601_to_epoch "$(pki_crl_nextupdate)")"
+}
+
 pki_cert_getfield() {
 	# usage: pki_cert_getfield cert-file field-name
 	# prints the value of the field-name field
