@@ -117,6 +117,7 @@ fi
 #include cmd-renew.in
 #include cmd-resend.in
 #include cmd-revoke.in
+#include cmd-gencrl.in
 #include cmd-updatedb.in
 #include cmd-expiring-soon.in
 
