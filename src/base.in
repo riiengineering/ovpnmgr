@@ -64,7 +64,7 @@ read_secure() {
 read_passphrase_confirm() {
 	# usage: read_passphrase_confirm dest_var prompt
 
-	__read_passphase_rc=1
+	__read_passphase_rc=%{EFAIL}
 
 	# check parameters first
 	: "${1:?no destination variable given}"
@@ -106,7 +106,7 @@ read_passphrase_confirm() {
 		in
 			("${__read_passphrase_y-}")
 				# ok
-				__read_passphase_rc=0
+				__read_passphase_rc=%{EOK}
 				read -r "${1:?}" <<-EOF || { __read_passphase_rc=$?; unset -v "$1"; }
 				${__read_passphrase_x}
 				EOF
