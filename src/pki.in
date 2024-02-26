@@ -125,6 +125,15 @@ pki_check_cert_lifetime() {
 	>/dev/null
 }
 
+pki_cert_getfield() {
+	# usage: pki_cert_getfield cert-file field-name
+	# prints the value of the field-name field
+	# (given as openssl-x5098(1ossl) argument name, without leading -)
+	pki_openssl x509 -in "${1:?no certificate given}" -noout -dateopt iso_8601 \\
+		-"${2:?no field name given}" \\
+	| sed 's/^[A-Za-z]*=//'
+}
+
 pki_gencrl() {
 	pki_ca_exists || return %{PKI_ENOCA}
 

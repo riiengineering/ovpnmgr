@@ -8,7 +8,7 @@
 
 # expiring-soon command
 
-expire_alarm_threshold=$((30 * 24 * 60 * 60))
+expire_alarm_days=30
 
 cmd_expiring_soon_usage() {
 	printf 'usage: %s expiring-soon\\n' "$0"
@@ -30,13 +30,14 @@ cmd_expiring_soon() {
 	do
 		_crtfile="${PKI_DIR:?}/certs/${_cn:?}.crt"
 
-		openssl x509 -in "${_crtfile}" -noout -checkend $((expire_alarm_threshold)) >/dev/null || {
-			# user certificate will expire within $expire_alarm_threshold
+		if ! pki_check_cert_lifetime "${_crtfile}" $((expire_alarm_days))
+		then
+			# user certificate will expire within $expire_alarm_days
 			printf '%s: certificate will expire soon (%s).\\n' \\
 				"${_cn}" \\
-				"$(openssl x509 -in "${_crtfile}" -noout -enddate | sed 's/^[^=]*=//')"
+				"$(pki_cert_getfield "${_crtfile}" enddate)"
 			_rc=%{EFAIL}
-		}
+		fi
 	done <<-EOF
 	$(pki_index_parse states:V output:cn-only)
 	EOF
