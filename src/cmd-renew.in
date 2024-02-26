@@ -2,6 +2,8 @@
 #dnl
 #dnl This module implements the renew command.
 #dnl
+#ifndef _HAVE_CMD_RENEW_IN
+#define _HAVE_CMD_RENEW_IN
 #include pki.in
 #include config-package.in
 
@@ -86,3 +88,5 @@ cmd_renew() {
 	}
 #endif
 }
+
+#endif

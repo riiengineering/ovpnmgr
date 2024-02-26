@@ -2,6 +2,8 @@
 #dnl
 #dnl This module implements the gencrl command.
 #dnl
+#ifndef _HAVE_CMD_GENCRL_IN
+#define _HAVE_CMD_GENCRL_IN
 #include pki.in
 
 # gencrl command
@@ -23,3 +25,5 @@ cmd_gencrl() {
 
 	pki_gencrl
 }
+
+#endif

@@ -2,6 +2,8 @@
 #dnl
 #dnl This module implements the list-users command.
 #dnl
+#ifndef _HAVE_CMD_LIST_USERS_IN
+#define _HAVE_CMD_LIST_USERS_IN
 #include pki.in
 
 # list-users command
@@ -23,3 +25,5 @@ cmd_list_users() {
 
 	pki_index_parse output:human
 }
+
+#endif

@@ -2,6 +2,8 @@
 #dnl
 #dnl This module implements the resend command.
 #dnl
+#ifndef _HAVE_CMD_RESEND_IN
+#define _HAVE_CMD_RESEND_IN
 #ifbool USE_MAIL_CONFIG
 #include config-package.in
 
@@ -44,4 +46,6 @@ cmd_resend() {
 		printf 'mailing user package failed.'
 	}
 }
+
+#endif
 #endif

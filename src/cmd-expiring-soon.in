@@ -2,6 +2,8 @@
 #dnl
 #dnl This module implements the expiring-soon command.
 #dnl
+#ifndef _HAVE_CMD_EXPIRING_SOON_IN
+#define _HAVE_CMD_EXPIRING_SOON_IN
 #include pki.in
 
 # expiring-soon command
@@ -41,3 +43,5 @@ cmd_expiring_soon() {
 
 	return $((_rc))
 }
+
+#endif

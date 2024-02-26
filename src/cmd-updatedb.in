@@ -2,6 +2,8 @@
 #dnl
 #dnl This module implements the updatedb command.
 #dnl
+#ifndef _HAVE_CMD_UPDATEDB_IN
+#define _HAVE_CMD_UPDATEDB_IN
 #include pki.in
 
 # updatedb command
@@ -23,3 +25,5 @@ cmd_updatedb() {
 
 	pki_updatedb
 }
+
+#endif

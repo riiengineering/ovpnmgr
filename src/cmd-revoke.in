@@ -2,6 +2,8 @@
 #dnl
 #dnl This module implements the revoke command.
 #dnl
+#ifndef _HAVE_CMD_REVOKE_IN
+#define _HAVE_CMD_REVOKE_IN
 #include pki.in
 
 # revoke command
@@ -24,3 +26,5 @@ cmd_revoke() {
 
 	pki_revoke "${username:?}"
 }
+
+#endif
