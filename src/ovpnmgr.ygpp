@@ -4,7 +4,7 @@
 # ovpnmgr: a shell-based tool to manage OpenVPN user credentials
 #          (using an OpenSSL-managed PKI)
 #
-# Copyright 2023 Dennis Camera (dennis.camera at riiengineering.ch)
+# Copyright 2023-2024 Dennis Camera (dennis.camera at riiengineering.ch)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
