@@ -38,7 +38,7 @@ cmd_monitor_check_ca() {
 		return %{PKI_ENOCA}
 	fi
 
-	${cmd_monitor_quiet?} || printf 'CA valid until %s. OK\\n' \
+	${cmd_monitor_quiet?} || printf 'CA valid until %s. OK\\n' \\
 		"$(pki_cert_getfield "${PKI_DIR:?}/ca/ca.crt" enddate)"
 }
 cmd_monitor_check_crl() {

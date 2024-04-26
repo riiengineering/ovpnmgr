@@ -74,7 +74,7 @@ cmd_renew() {
 		pki_rebuild "${username:?}" "${email:?}" "${pass:?}" \\
 		|| fail 'rebuilding key pair failed'
 	else
-		printf 'Renewing user certificate for %s...\n' "${username:?}"
+		printf 'Renewing user certificate for %s...\\n' "${username:?}"
 		pki_resign_user_cert "${username:?}" || fail 're-signing certificate failed'
 	fi
 

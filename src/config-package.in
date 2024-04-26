@@ -112,7 +112,7 @@ store_user_passphrase() {
 	then
 		# TODO: first, get the user's PGP key, because without it we cannot
 		#       store their credentials.
-		# printf 'Fetching PGP key for %s…\n' "${email}"
+		# printf 'Fetching PGP key for %s…\\n' "${email}"
 		# gpg_fetch_key "${email}" || return %{EFAIL}
 
 		gpg_encrypt "${email}" >"${user_package_dir:?}/password.txt.gpg"
