@@ -333,30 +333,29 @@ mail_user_package() {
 		# body
 		mime_start_mail
 
-		if test -e "${CONFDIR:?}/config-mail"
-		then
+		{
+			if test -e "${CONFDIR:?}/config-mail"
+			then
+				cat "${CONFDIR:?}/config-mail"
+			else
+				# default message
+				cat <<-'EOF'
+				Hello,
+
+				please find attached the configuration files for your new personalised
+				OpenVPN connection.
+
+				Kind regards,
+
+				the VPN administator.
+				EOF
+			fi
 			# NOTE: append 2 empty lines to make attachment appear separated
-			#       with an empty line in MUAs which display attachments inline
-			#       (hi, Apple Mail).
-			cat "${CONFDIR:?}/config-mail" - <<-'EOF'
-
-
-			EOF
-		else
-			# default message
-			cat <<-'EOF'
-			Hello,
-
-			please find attached the configuration files for your new personalised
-			OpenVPN connection.
-
-			Kind regards,
-
-			the VPN administator.
-
-
-			EOF
-		fi
+			#       with an empty line in MUAs which display attachments
+			#       inline (hi, Apple Mail).
+			echo
+			echo
+		} | qpencode
 
 #ifbool USE_PGP_MAIL
 		mime_attach_file \\
