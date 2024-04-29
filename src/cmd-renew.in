@@ -9,7 +9,7 @@
 
 # renew command
 
-MAX_RENEW_DAYS=14
+: "${MAX_RENEW_DAYS=14}"
 
 cmd_renew_usage() {
 	printf 'usage: %s renew USERNAME\\n' "$0"
